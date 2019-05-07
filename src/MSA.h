@@ -5,6 +5,12 @@
 #ifndef VEST_MSA_H
 #define VEST_MSA_H
 
+#include <algorithm>
+#include <iostream>
+#include <fstream>
+#include <queue>
+#include <stack>
+#include <map>
 
 class MSA {
 
