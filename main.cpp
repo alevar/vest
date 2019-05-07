@@ -4,7 +4,7 @@
 
 #include "src/arg_parse.h"
 #include "src/MSA.h"
-#include "src/MGraph.h"
+#include "src/MSA_Graph.h"
 
 void print_help(){
     std::cout<<"help page"<<std::endl;
