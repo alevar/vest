@@ -19,7 +19,7 @@ void MSA::parse_msa() {
         exit(-1);
     }
     msa_fp.close();
-    std::cout << "Reading from the Multiple Sequence Alignment file: " << this->msa_fhandle << std::endl;
+    std::cerr << "Reading from the Multiple Sequence Alignment file: " << this->msa_fname << std::endl;
 
     FastaReader fastaReader(this->msa_fname);
     FastaRecord cur_genome;
@@ -70,6 +70,20 @@ void MSA::parse_msa() {
                 old_seq_idx++;
                 for (auto cur_iupac_nt : this->IUPAC_REV[cur_nt]){
                     this->graph.add_snp(cur_iupac,i,cur_genome_id);
+                }
+
+                if (cur_genome.seq_[i-1] == '-' && !last_mv.isEmpty()){ // add edge between last vertex and new one
+                    last_mv.add_edge(i,cur_genome_id);
+                }
+                else{
+                    if (cur_genome.seq_[i-1] != '-' && i != 0){
+                        this->graph.add_edge(i-1,1,cur_genome_id);
+                    }
+                }
+            }
+            else{
+                if (cur_genome.seq_[i-1] != '-' && i != 0){
+                    last_mv = this->graph.get_vertex(i-1);
                 }
             }
         }

@@ -21,7 +21,9 @@ public:
 
     uint16_t add_ref(std::string& ref_name);
     void add_pos(uint16_t id,uint32_t old_pos,uint32_t new_pos);
-    void add_snp(const std::string nt,uint32_t pos,uint16_t ref_id);
+    void add_snp(std::string nt,uint32_t pos,uint16_t ref_id);
+    void add_edge(uint32_t prev,uint32_t next, uint16_t ref_id);
+    MSA_Vertex get_vertex(uint32_t pos);
 
 private:
     MSA_Index index; // index which holds ref IDs

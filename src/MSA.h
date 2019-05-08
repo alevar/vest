@@ -13,6 +13,7 @@
 #include <map>
 
 #include "MSA_Graph.h"
+#include "MSA_Vertex.h"
 
 class MSA {
 public:

@@ -24,7 +24,16 @@ void MSA_Graph::add_pos(uint16_t id, uint32_t old_pos, uint32_t new_pos) {
 }
 
 // this function sets a snp for a given vertex
-void MSA_Graph::add_snp(const std::string nt, uint32_t pos, uint16_t ref_id) {
+void MSA_Graph::add_snp(std::string nt, uint32_t pos, uint16_t ref_id) {
     MSA_Vertex mv = this->vertices.get(pos);
     mv.add_snp((uint8_t) nt[0], ref_id);
+}
+
+void MSA_Graph::add_edge(uint32_t prev, uint32_t next, uint16_t ref_id) {
+    MSA_Vertex mv = this->vertices.get(prev);
+    mv.add_edge(next, ref_id);
+}
+
+MSA_Vertex MSA_Graph::get_vertex(uint32_t pos) {
+    return this->vertices.get(pos);
 }

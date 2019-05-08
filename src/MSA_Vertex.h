@@ -14,16 +14,20 @@ class MSA_Vertex {
 public:
     MSA_Vertex() = default;
     explicit MSA_Vertex(int num_ref, int pos){
-        this->contents = std::vector<uint8_t>(num_ref);
+        this->contents = std::vector<std::pair<uint8_t,uint32_t>>(num_ref);
         this->pos = pos;
     };
     ~MSA_Vertex() = default;
 
     void add_snp(uint8_t nt, uint16_t ref){
-        this->contents[ref] = nt;
+        this->contents[ref].first = nt;
     }
 
-    std::vector<uint8_t> get_contents() const {
+    void add_edge(uint32_t next,uint16_t ref){
+        this->contents[ref].second = next;
+    }
+
+    std::vector<std::pair<uint8_t,uint32_t>> get_contents() const {
         return this->contents;
     }
 
@@ -31,9 +35,13 @@ public:
         return this->pos;
     }
 
-    typedef std::vector<uint8_t>::iterator iterator;
-    typedef std::vector<uint8_t>::const_iterator const_iterator;
-    typedef std::vector<uint8_t>::reference reference;
+    bool isEmpty(){
+        return this->contents.empty();
+    }
+
+    typedef std::vector<std::pair<uint8_t,uint32_t> >::iterator iterator;
+    typedef std::vector<std::pair<uint8_t,uint32_t>>::const_iterator const_iterator;
+    typedef std::vector<std::pair<uint8_t,uint32_t>>::reference reference;
     iterator begin() {return contents.begin();}
     const_iterator begin() const { return contents.begin();}
     iterator end() {return contents.end();}
@@ -44,7 +52,7 @@ public:
     }
 
 private:
-    std::vector<uint8_t> contents; // vector of nucleotides, where nucleotide is kept at the position of the reference id
+    std::vector<std::pair<uint8_t,uint32_t> > contents; // vector of nucleotides, where nucleotide is kept at the position of the reference id. each position also stores the index of the next vertex in case there exists an edge
     uint32_t pos = 0; // position of the vertex in the MSA
 
 };
