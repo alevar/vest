@@ -6,6 +6,7 @@
 
 MSA_Graph::MSA_Graph(int length,int num_refs) {
     this->length = length;
+    this->num_refs = num_refs;
 
     // initialize vertices
     for(int i=0;i<length;i++){
@@ -25,15 +26,36 @@ void MSA_Graph::add_pos(uint16_t id, uint32_t old_pos, uint32_t new_pos) {
 
 // this function sets a snp for a given vertex
 void MSA_Graph::add_snp(std::string nt, uint32_t pos, uint16_t ref_id) {
-    MSA_Vertex mv = this->vertices.get(pos);
-    mv.add_snp((uint8_t) nt[0], ref_id);
+    MSA_Vertex* mv = this->vertices.get(pos);
+    mv->add_snp(nt, ref_id);
+    mv = this->vertices.get(pos);
+//    std::cerr<<"g\t"<<mv->get_nt(ref_id)<<std::endl;
+//    std::cerr<<nt<<std::endl;
 }
 
 void MSA_Graph::add_edge(uint32_t prev, uint32_t next, uint16_t ref_id) {
-    MSA_Vertex mv = this->vertices.get(prev);
-    mv.add_edge(next, ref_id);
+    MSA_Vertex* mv = this->vertices.get(prev);
+    mv->add_edge(next, ref_id);
 }
 
-MSA_Vertex MSA_Graph::get_vertex(uint32_t pos) {
+MSA_Vertex* MSA_Graph::get_vertex(uint32_t pos) {
     return this->vertices.get(pos);
+}
+
+std::string MSA_Graph::get_id(uint16_t id) {
+    return this->index.getRef(id);
+}
+
+int MSA_Graph::get_num_refs(){
+    return this->num_refs;
+}
+
+int MSA_Graph::get_len(){
+    return this->length;
+}
+
+std::string MSA_Graph::get_nt(uint32_t vt_pos,uint16_t ref_id){
+//    std::cerr<<vt_pos<<"\t";
+    MSA_Vertex* mv = this->vertices.get(vt_pos);
+    return mv->get_nt(ref_id);
 }

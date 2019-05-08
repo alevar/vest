@@ -21,6 +21,8 @@ public:
     MSA(std::string msa_fname);
     ~MSA() = default;
 
+    void to_msa(std::string out_msa_fname);
+
 private:
     std::string msa_fname;
     FILE* msa_fhandle;
@@ -52,6 +54,8 @@ private:
                                                                                                      {"CAGT","N"},{"CATG","N"},{"CGAT","N"},{"CGTA","N"},{"CTAG","N"},{"CTGA","N"},
                                                                                                      {"GACT","N"},{"GATC","N"},{"GCAT","N"},{"GCTA","N"},{"GTAC","N"},{"GTCA","N"},
                                                                                                      {"TACG","N"},{"TAGC","N"},{"TCAG","N"},{"TCGA","N"},{"TGAC","N"},{"TGCA","N"}});
+
+    std::unordered_map<std::string,std::string>::iterator IUPAC_it;
 
     std::unordered_map<std::string,std::string> IUPAC_REV = std::unordered_map<std::string,std::string>({{"A","A"},{"a","A"},
                                                                                                          {"C","C"},{"c","C"},

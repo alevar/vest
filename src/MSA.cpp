@@ -60,7 +60,8 @@ void MSA::parse_msa() {
         cur_genome_id = this->graph.add_ref(cur_genome.id_); // add reference to the index
 
 //        std::cout<<cur_genome.id_<<std::endl;
-        MSA_Vertex last_mv; // last vertex for connecting edges
+        MSA_Vertex* last_mv; // last vertex for connecting edges
+        bool unassigned_last = true;
         uint32_t old_seq_idx = 0; // keeps track of the base position within the original reference sequence
 
         for (int i=0; i<cur_genome.seq_.size();i++){
@@ -69,11 +70,12 @@ void MSA::parse_msa() {
                 this->graph.add_pos(cur_genome_id,old_seq_idx,i); // add old and new positions to the index
                 old_seq_idx++;
                 for (auto cur_iupac_nt : this->IUPAC_REV[cur_nt]){
-                    this->graph.add_snp(cur_iupac,i,cur_genome_id);
+                    this->graph.add_snp(std::string(1,cur_iupac_nt),i,cur_genome_id);
+//                    std::cerr<<cur_nt<<"\t"<<std::string(1,cur_iupac_nt)<<std::endl;
                 }
 
-                if (cur_genome.seq_[i-1] == '-' && !last_mv.isEmpty()){ // add edge between last vertex and new one
-                    last_mv.add_edge(i,cur_genome_id);
+                if (cur_genome.seq_[i-1] == '-' && !unassigned_last){ // add edge between last vertex and new one
+                    last_mv->add_edge(i,cur_genome_id);
                 }
                 else{
                     if (cur_genome.seq_[i-1] != '-' && i != 0){
@@ -84,8 +86,40 @@ void MSA::parse_msa() {
             else{
                 if (cur_genome.seq_[i-1] != '-' && i != 0){
                     last_mv = this->graph.get_vertex(i-1);
+                    unassigned_last = false;
                 }
             }
         }
     }
+}
+
+// this function outputs the MSA into a file
+void MSA::to_msa(std::string out_msa_fname) {
+    std::ofstream msa_fp(out_msa_fname.c_str());
+
+    int glen = this->graph.get_len();
+    int gnum_ref = this->graph.get_num_refs();
+
+    MSA_Vertex cur_vt;
+
+    for(int n=0;n<gnum_ref;n++){
+        msa_fp << ">" <<this->graph.get_id(n) << std::endl; // save name
+
+        for(int i=0;i<glen;i++){ // output the sequence of the current reference genome
+            if (i%60 == 0 && i != 0){ // break sequence at certain number of characters
+                msa_fp<<std::endl;
+            }
+            this->IUPAC_it = this->IUPAC.find(this->graph.get_nt(i,n));
+            if(this->IUPAC_it != this->IUPAC.end()){
+                msa_fp<<this->IUPAC_it->second;
+            }
+            else{
+                msa_fp<<"-";
+            }
+
+        }
+        msa_fp<<std::endl;
+    }
+
+    msa_fp.close();
 }

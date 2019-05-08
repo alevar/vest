@@ -23,11 +23,18 @@ public:
     void add_pos(uint16_t id,uint32_t old_pos,uint32_t new_pos);
     void add_snp(std::string nt,uint32_t pos,uint16_t ref_id);
     void add_edge(uint32_t prev,uint32_t next, uint16_t ref_id);
-    MSA_Vertex get_vertex(uint32_t pos);
+    MSA_Vertex* get_vertex(uint32_t pos);
+
+    std::string get_id(uint16_t id);
+    int get_num_refs();
+    int get_len();
+
+    std::string get_nt(uint32_t vt_pos,uint16_t ref_id);
 
 private:
     MSA_Index index; // index which holds ref IDs
     int length = 0;
+    int num_refs = 0;
 
     MSA_List<MSA_Vertex> vertices;
 };

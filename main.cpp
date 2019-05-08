@@ -9,6 +9,19 @@ void print_help(){
     std::cout<<"help page"<<std::endl;
 }
 
+int vest_inspect(int argc,char* argv[]){
+    enum Opt_Inspect {MSA_DB = 'x',
+                      OUT_MSA= 'm'};
+
+    ArgParse args_inspect("vest_inspect");
+    args_inspect.add_string(Opt_Inspect::MSA_DB,"db","","path to the vest database");
+    args_inspect.add_string(Opt_Inspect::OUT_MSA,"msa","","output file for the MSA encoded in the database");
+
+    args_inspect.parse_args(argc,argv);
+
+    return 0;
+}
+
 int vest_realign(int argc,char* argv[]){
     enum Opt_Realign {INPUT_FP= 'i',
                     OUTPUT= 'o',
@@ -38,6 +51,8 @@ int vest_build(int argc,char* argv[]){
 
     MSA msa(args_build.get_string(MUS_FP));
 
+    msa.to_msa("./vestDB_24/db2msa.mus");
+
     return 0;
 }
 
@@ -56,6 +71,13 @@ int main(int argc, char* argv[]) {
         char* argv_realign[argc_realign];
         memcpy(argv_realign, argv+1, argc_realign*sizeof(char*));
         vest_realign(argc_realign,argv_realign);
+    }
+    else if(strcmp(argv[1],"insepct") ==0 ){
+        std::cerr<<"inspecting"<<std::endl;
+        int argc_inspect=argc-1;
+        char* argv_inspect[argc_inspect];
+        memcpy(argv_inspect, argv+1, argc_inspect*sizeof(char*));
+        vest_inspect(argc_inspect,argv_inspect);
     }
     else if (strcmp(argv[1],"help") == 0 || strcmp(argv[1],"--help") == 0){
         print_help();
