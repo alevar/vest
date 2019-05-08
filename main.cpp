@@ -4,7 +4,6 @@
 
 #include "src/arg_parse.h"
 #include "src/MSA.h"
-#include "src/MSA_Graph.h"
 
 void print_help(){
     std::cout<<"help page"<<std::endl;
@@ -36,6 +35,8 @@ int vest_build(int argc,char* argv[]){
     args_build.add_string(Opt_Build::MUS_DB,"out","","");
 
     args_build.parse_args(argc,argv);
+
+    MSA msa(args_build.get_string(MUS_FP));
 
     return 0;
 }
