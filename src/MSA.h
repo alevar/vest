@@ -12,19 +12,23 @@
 #include <stack>
 #include <map>
 
+#include "MSA_Graph.h"
+
 class MSA {
 public:
     MSA() = default;
     MSA(std::string msa_fname);
     ~MSA() = default;
 
-    void parse_msa();
-
 private:
     std::string msa_fname;
     FILE* msa_fhandle;
     int msa_len = 0; // number of nucleotides in the msa
     int num_refs = 0;
+
+    MSA_Graph graph;
+
+    void parse_msa();
 
 };
 

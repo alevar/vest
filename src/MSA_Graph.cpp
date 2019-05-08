@@ -9,6 +9,10 @@ MSA_Graph::MSA_Graph(int length,int num_refs) {
 
     // initialize vertices
     for(int i=0;i<length;i++){
-        vertices.insert(MSA_Vertex(num_refs));
+        vertices.insert(MSA_Vertex(num_refs,i));
     }
+}
+
+uint16_t MSA_Graph::add_ref(std::string& ref_name) {
+    return this->index.addRef(ref_name);
 }

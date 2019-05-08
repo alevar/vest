@@ -16,13 +16,19 @@ inline void hash_combine(std::size_t& seed, std::size_t v){
     seed ^= v + 0x9e3779b9 + (seed<<6) + (seed>>2);
 }
 
-struct MSA_Vertex_Hasher{
+struct MSA_Vertex_Contents_Hasher{ // based on the contents of the vertex
     std::size_t operator()(const MSA_Vertex& mv) const{
         std::size_t hash = 0;
         for (uint8_t i : mv){
             hash_combine(hash, i);
         }
         return hash;
+    }
+};
+
+struct MSA_Vertex_Pos_Hasher{ // based on the position of the vertex
+    std::size_t operator()(const MSA_Vertex& mv) const{
+        return mv.get_pos();
     }
 };
 
@@ -58,10 +64,10 @@ public:
     }
 
 private:
-    std::unordered_map<OBJ,uint32_t,MSA_Vertex_Hasher> hkeys;
+    std::unordered_map<OBJ,uint32_t,MSA_Vertex_Pos_Hasher> hkeys;
     std::vector<OBJ> vkeys;
 
-    std::pair<typename std::unordered_map<OBJ,uint32_t,MSA_Vertex_Hasher>::iterator,bool> hk_it;
+    std::pair<typename std::unordered_map<OBJ,uint32_t,MSA_Vertex_Pos_Hasher>::iterator,bool> hk_it;
 
 };
 

@@ -12,8 +12,9 @@
 
 class MSA_Vertex {
 public:
-    explicit MSA_Vertex(int num_ref){
+    explicit MSA_Vertex(int num_ref, int pos){
         this->contents = std::vector<uint8_t>(num_ref);
+        this->pos = pos;
     };
     ~MSA_Vertex() = default;
 
@@ -25,6 +26,10 @@ public:
         return this->contents;
     }
 
+    int get_pos() const {
+        return this->pos;
+    }
+
     typedef std::vector<uint8_t>::iterator iterator;
     typedef std::vector<uint8_t>::const_iterator const_iterator;
     typedef std::vector<uint8_t>::reference reference;
@@ -34,11 +39,12 @@ public:
     const_iterator end() const { return contents.end();}
 
     bool operator==(const MSA_Vertex& mv) const{
-        return this->contents == mv.get_contents();
+        return this->contents == mv.get_contents() && this->pos == mv.get_pos();
     }
 
 private:
     std::vector<uint8_t> contents; // vector of nucleotides, where nucleotide is kept at the position of the reference id
+    uint32_t pos; // position of the vertex in the MSA
 
 };
 

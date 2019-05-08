@@ -104,6 +104,11 @@ bool FastaReader::next(FastaRecord& rec) {
     return true;
 }
 
+void FastaReader::reset(){
+    ifstream_.clear();
+    ifstream_.seekg(0, std::ios::beg);
+}
+
 
 FastaWriter::FastaWriter()
 {

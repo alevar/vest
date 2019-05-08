@@ -17,6 +17,8 @@ public:
     MSA_Graph(int length, int num_refs);
     ~MSA_Graph() = default;
 
+    uint16_t add_ref(std::string& ref_name);
+
 private:
     MSA_Index index; // index which holds ref IDs
     int length = 0;

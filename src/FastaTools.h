@@ -50,6 +50,7 @@ public:
     void init(std::string fname);
     bool good() const;
     bool next(FastaRecord& rec);
+    void reset();
 private:
     std::string fname_;
     std::string prev_line_;
