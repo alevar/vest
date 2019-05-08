@@ -23,6 +23,8 @@ public:
 
     void to_msa(std::string out_msa_fname);
 
+    void save_graph(std::string out_graph_fname);
+
 private:
     std::string msa_fname;
     FILE* msa_fhandle;
@@ -32,6 +34,9 @@ private:
     MSA_Graph graph;
 
     void parse_msa();
+    void serialize();
+    void save_graph_info(std::string out_graph_info_fname);
+    void _save_graph(std::string out_graph_fname);
 
 
     // IUPAC definitions

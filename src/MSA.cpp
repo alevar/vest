@@ -123,3 +123,39 @@ void MSA::to_msa(std::string out_msa_fname) {
 
     msa_fp.close();
 }
+
+void MSA::save_graph(std::string out_graph_base_name) {
+    MSA::_save_graph(out_graph_base_name);
+    MSA::save_graph_info(out_graph_base_name);
+}
+
+
+void MSA::serialize() {
+
+}
+
+void MSA::_save_graph(std::string out_graph_fname){
+    std::ofstream graph_fp(out_graph_fname.c_str());
+
+    int glen = this->graph.get_len();
+    int gnum_ref = this->graph.get_num_refs();
+
+    MSA_Vertex cur_vt;
+
+
+
+    graph_fp.close();
+}
+
+void MSA::save_graph_info(std::string out_graph_info_fname){
+    std::ofstream graph_info_fp(out_graph_info_fname.c_str());
+
+    int glen = this->graph.get_len();
+    int gnum_ref = this->graph.get_num_refs();
+
+    MSA_Vertex cur_vt;
+
+
+
+    graph_info_fp.close();
+}
