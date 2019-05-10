@@ -54,7 +54,13 @@ int vest_realign(int argc,char* argv[]){
 
     MSA msa;
     msa.load_graph(args_realign.get_string(MUS_DB));
-    msa.realign_bam(args_realign.get_string(INPUT_FP),args_realign.get_string(OUTPUT));
+
+    if(args_realign.get_string(INPUT_FP).substr(args_realign.get_string(INPUT_FP).find_last_of(".") + 1) == "bam") {
+        msa.realign_bam(args_realign.get_string(INPUT_FP),args_realign.get_string(OUTPUT));
+    }
+    else {
+        msa.realign_sam(args_realign.get_string(INPUT_FP),args_realign.get_string(OUTPUT));
+    }
 
     return 0;
 }

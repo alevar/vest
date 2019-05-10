@@ -15,11 +15,8 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="f5561085-da58-4fa4-8726-e3081b5e6524" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/CMakeLists.txt" beforeDir="false" afterPath="$PROJECT_DIR$/CMakeLists.txt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/main.cpp" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/MSA.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/MSA.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/MSA.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/MSA.h" afterDir="false" />
     </list>
     <ignored path="$PROJECT_DIR$/cmake-build-debug/" />
     <ignored path="$PROJECT_DIR$/cmake-build-release/" />
@@ -47,8 +44,8 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/src/MSA.cpp">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="421">
-              <caret line="340" column="55" selection-start-line="340" selection-start-column="55" selection-end-line="340" selection-end-column="55" />
+            <state relative-caret-position="410">
+              <caret line="351" column="32" selection-start-line="351" selection-start-column="32" selection-end-line="351" selection-end-column="32" />
               <folding>
                 <element signature="e#40#56#0" expanded="true" />
               </folding>
@@ -113,8 +110,8 @@
       <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/main.cpp">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="435">
-              <caret line="56" column="84" selection-start-line="56" selection-start-column="84" selection-end-line="56" selection-end-column="84" />
+            <state relative-caret-position="150">
+              <caret line="54" column="12" lean-forward="true" selection-start-line="54" selection-start-column="12" selection-end-line="54" selection-end-column="12" />
               <folding>
                 <element signature="e#0#19#0" expanded="true" />
               </folding>
@@ -163,20 +160,20 @@
         <option value="$PROJECT_DIR$/src/MSA_Graph.cpp" />
         <option value="$PROJECT_DIR$/src/MSA_Graph.h" />
         <option value="$PROJECT_DIR$/src/MSA.h" />
-        <option value="$PROJECT_DIR$/src/MSA.cpp" />
         <option value="$PROJECT_DIR$/Findhtslib.cmake" />
         <option value="$PROJECT_DIR$/cmake/zlib.cmake" />
         <option value="$PROJECT_DIR$/cmake/htslib.cmake" />
         <option value="$PROJECT_DIR$/CMakeLists.txt" />
+        <option value="$PROJECT_DIR$/src/MSA.cpp" />
         <option value="$PROJECT_DIR$/main.cpp" />
       </list>
     </option>
   </component>
   <component name="ProjectFrameBounds">
-    <option name="x" value="1" />
-    <option name="y" value="-21" />
-    <option name="width" value="958" />
-    <option name="height" value="1100" />
+    <option name="x" value="-1" />
+    <option name="y" value="-23" />
+    <option name="width" value="1922" />
+    <option name="height" value="1104" />
   </component>
   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
   <component name="ProjectView">
@@ -214,6 +211,7 @@
     </panes>
   </component>
   <component name="PropertiesComponent">
+    <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
     <property name="WebServerToolWindowFactoryState" value="false" />
     <property name="settings.editor.selected.configurable" value="CMakeSettings" />
   </component>
@@ -282,12 +280,12 @@
       <workItem from="1557083931734" duration="5237000" />
       <workItem from="1557168619542" duration="54786000" />
       <workItem from="1557429440478" duration="6000" />
-      <workItem from="1557429469719" duration="24738000" />
+      <workItem from="1557429469719" duration="25478000" />
     </task>
     <servers />
   </component>
   <component name="TimeTrackingManager">
-    <option name="totallyTimeSpent" value="86844000" />
+    <option name="totallyTimeSpent" value="87584000" />
   </component>
   <component name="ToolWindowManager">
     <frame x="-1" y="-23" width="1922" height="1104" extended-state="0" />
@@ -298,7 +296,7 @@
       <window_info id="Favorites" order="2" side_tool="true" />
       <window_info anchor="bottom" id="Message" order="0" />
       <window_info anchor="bottom" id="Find" order="1" weight="0.3296146" />
-      <window_info anchor="bottom" id="Run" order="2" weight="0.29006085" />
+      <window_info active="true" anchor="bottom" id="Run" order="2" visible="true" weight="0.29006085" />
       <window_info anchor="bottom" id="Debug" order="3" weight="0.3995943" />
       <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
       <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
@@ -308,7 +306,7 @@
       <window_info anchor="bottom" id="Event Log" order="9" side_tool="true" />
       <window_info anchor="bottom" id="Version Control" order="10" weight="0.17515275" />
       <window_info anchor="bottom" id="CMake" order="11" weight="0.32790223" />
-      <window_info active="true" anchor="bottom" id="Messages" order="12" visible="true" weight="0.3255578" />
+      <window_info anchor="bottom" id="Messages" order="12" weight="0.3255578" />
       <window_info anchor="right" id="Commander" internal_type="SLIDING" order="0" type="SLIDING" weight="0.4" />
       <window_info anchor="right" id="Ant Build" order="1" weight="0.25" />
       <window_info anchor="right" content_ui="combo" id="Hierarchy" order="2" weight="0.25" />
@@ -495,8 +493,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/src/MSA.cpp">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="421">
-          <caret line="340" column="55" selection-start-line="340" selection-start-column="55" selection-end-line="340" selection-end-column="55" />
+        <state relative-caret-position="410">
+          <caret line="351" column="32" selection-start-line="351" selection-start-column="32" selection-end-line="351" selection-end-column="32" />
           <folding>
             <element signature="e#40#56#0" expanded="true" />
           </folding>
@@ -505,8 +503,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/main.cpp">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="435">
-          <caret line="56" column="84" selection-start-line="56" selection-start-column="84" selection-end-line="56" selection-end-column="84" />
+        <state relative-caret-position="150">
+          <caret line="54" column="12" lean-forward="true" selection-start-line="54" selection-start-column="12" selection-end-line="54" selection-end-column="12" />
           <folding>
             <element signature="e#0#19#0" expanded="true" />
           </folding>

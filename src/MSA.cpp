@@ -340,9 +340,23 @@ void MSA::realign_bam(std::string in_sam, std::string out_sam) {
     while(sam_read1(in_al,in_al_hdr,in_rec)>0) {
         std::cerr << bam_get_qname(in_rec) <<std::endl;
     }
+
+    bam_destroy1(in_rec);
+    sam_close(in_al);
 }
 
 // same as realign_bam but for SAM files
 void MSA::realign_sam(std::string in_sam, std::string out_sam) {
+    samFile *in_al=sam_open(in_sam.c_str(),"r");
+    bam_hdr_t *in_al_hdr = sam_hdr_read(in_al); //read header
+    in_al_hdr->ignore_sam_err=1;
+    bam1_t *in_rec = bam_init1(); //initialize an alignment
+    int ret;
+    while (hts_getline(in_al, 2, &in_al->line)>0) {
+        ret = sam_parse1(&in_al->line, in_al_hdr, in_rec);
+        std::cerr << bam_get_qname(in_rec) << std::endl;
+    }
 
+    bam_destroy1(in_rec);
+    sam_close(in_al);
 }
