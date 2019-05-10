@@ -28,9 +28,6 @@ void MSA_Graph::add_pos(uint16_t id, uint32_t old_pos, uint32_t new_pos) {
 void MSA_Graph::add_snp(std::string nt, uint32_t pos, uint16_t ref_id) {
     MSA_Vertex* mv = this->vertices.get(pos);
     mv->add_snp(nt, ref_id);
-    mv = this->vertices.get(pos);
-//    std::cerr<<"g\t"<<mv->get_nt(ref_id)<<std::endl;
-//    std::cerr<<nt<<std::endl;
 }
 
 void MSA_Graph::add_edge(uint32_t prev, uint32_t next, uint16_t ref_id) {
@@ -46,16 +43,27 @@ std::string MSA_Graph::get_id(uint16_t id) {
     return this->index.getRef(id);
 }
 
-int MSA_Graph::get_num_refs(){
+int MSA_Graph::get_num_refs() {
     return this->num_refs;
 }
 
-int MSA_Graph::get_len(){
+int MSA_Graph::get_len() {
     return this->length;
 }
 
-std::string MSA_Graph::get_nt(uint32_t vt_pos,uint16_t ref_id){
-//    std::cerr<<vt_pos<<"\t";
+std::string MSA_Graph::get_nt(uint32_t vt_pos,uint16_t ref_id) {
     MSA_Vertex* mv = this->vertices.get(vt_pos);
     return mv->get_nt(ref_id);
+}
+
+void MSA_Graph::save_index(std::ofstream& out_fp) {
+    this->index.save(out_fp);
+}
+
+void MSA_Graph::save_graph(std::ofstream &out_fp) {
+    MSA_Vertex* mv;
+    for(int i=0;i<this->vertices.size();i++){
+        mv = this->vertices.get(i);
+        mv->save(out_fp);
+    }
 }

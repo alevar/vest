@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <vector>
 #include <unordered_map>
+#include <fstream>
 
 class MSA_Vertex {
 public:
@@ -17,17 +18,16 @@ public:
     };
     explicit MSA_Vertex(int num_ref, int pos){
         this->empty = false;
-        this->contents = std::vector<std::pair<std::string,uint32_t>>(num_ref);
+        this->contents = std::vector<std::pair<std::string,uint32_t>>(num_ref,std::make_pair("",0));
         this->pos = pos;
     };
     ~MSA_Vertex() = default;
 
     void add_snp(std::string nt, uint16_t ref){
-        if (this->contents[ref].first.empty()){
-            this->contents[ref].first = "";
-        }
+//        if (this->contents[ref].first.empty()){
+//            this->contents[ref].first = "";
+//        }
         this->contents[ref].first += nt;
-//        std::cerr<<this->pos<<"\t"<<ref<<"\t"<<this->contents[ref].first<<"\t"<<nt<<std::endl;
     }
 
     void add_edge(uint32_t next,uint16_t ref){
@@ -43,7 +43,6 @@ public:
     }
 
     std::string get_nt(uint16_t ref_id) const {
-//        std::cerr<<ref_id<<"\t"<<this->contents[ref_id].first<<std::endl;
         return this->contents[ref_id].first;
     }
 
@@ -61,6 +60,26 @@ public:
 
     bool operator==(const MSA_Vertex& mv) const{
         return this->contents == mv.get_contents() && this->pos == mv.get_pos();
+    }
+
+    void save(std::ofstream& out_fp){
+        out_fp << this->pos << "\t";
+
+        for(int i=0;i<this->contents.size();i++){
+            if(!this->contents[i].first.empty()){ // only store those that are not empty
+                out_fp << i << ":" << this->contents[i].first;
+                if(this->contents[i].second != 0){
+                    out_fp << "-";
+                }
+                else{
+                    out_fp << this->contents[i].second;
+                }
+                if(i < this->contents.size()){
+                    out_fp << "\t";
+                }
+            }
+        }
+        out_fp << std::endl;
     }
 
 private:

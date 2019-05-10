@@ -9,6 +9,21 @@ void print_help(){
     std::cout<<"help page"<<std::endl;
 }
 
+// extracts VCF from the Vest-realigned files based on the optional arguments
+int vest_vcf(int argc,char* argv[]){
+    enum Opt_VCF {IN_SAM = 'i',
+        OUT_VCF= 'o'};
+
+    ArgParse args_vcf("vest_inspect");
+    args_vcf.add_string(Opt_VCF::IN_SAM,"input","","path to the vest-realigned SAM or BAM file");
+    args_vcf.add_string(Opt_VCF::OUT_VCF,"output","","path to the output VCF file");
+
+    args_vcf.parse_args(argc,argv);
+
+    return 0;
+}
+
+// allows extraction of the graph-encoded information from the database
 int vest_inspect(int argc,char* argv[]){
     enum Opt_Inspect {MSA_DB = 'x',
                       OUT_MSA= 'm'};
@@ -22,6 +37,7 @@ int vest_inspect(int argc,char* argv[]){
     return 0;
 }
 
+// performs realignment algorithm
 int vest_realign(int argc,char* argv[]){
     enum Opt_Realign {INPUT_FP= 'i',
                     OUTPUT= 'o',
@@ -39,6 +55,7 @@ int vest_realign(int argc,char* argv[]){
     return 0;
 }
 
+// builds the database
 int vest_build(int argc,char* argv[]){
     enum Opt_Build {MUS_FP   = 'i',
                     MUS_DB   = 'o'};

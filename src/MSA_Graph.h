@@ -30,6 +30,8 @@ public:
     int get_len();
 
     std::string get_nt(uint32_t vt_pos,uint16_t ref_id);
+    void save_index(std::ofstream& out_fp);
+    void save_graph(std::ofstream& out_fp); // saves vertices
 
 private:
     MSA_Index index; // index which holds ref IDs

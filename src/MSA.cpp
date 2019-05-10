@@ -135,7 +135,7 @@ void MSA::to_fasta(std::string out_msa_fname) {
 
     for(int n=0;n<gnum_ref;n++){
         msa_fp << ">" <<this->graph.get_id(n) << std::endl; // save name
-        
+
         int line_count = 0;
         bool line_started = false;
         for(int i=0;i<glen;i++){ // output the sequence of the current reference genome
@@ -186,8 +186,7 @@ void MSA::_save_graph(std::string out_base){
     graph_fname.append("/db.graph");
     std::ofstream graph_fp(graph_fname.c_str());
 
-    graph_fp << this->graph.get_len() << std::endl;
-    graph_fp << this->graph.get_num_refs() << std::endl;
+    this->graph.save_graph(graph_fp);
 
     graph_fp.close();
 }
@@ -211,8 +210,8 @@ void MSA::save_graph_contig_info(std::string out_base){
     graph_fname.append("/db.contig");
     std::ofstream graph_fp(graph_fname.c_str());
 
-    graph_fp << this->graph.get_len() << std::endl;
-    graph_fp << this->graph.get_num_refs() << std::endl;
+    // saves the MSA_Index from MSA_Graph
+    this->graph.save_index(graph_fp);
 
     graph_fp.close();
 }

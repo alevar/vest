@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 #include <iostream>
+#include <fstream>
 
 class MSA_Index {
 public:
@@ -50,6 +51,12 @@ public:
 
     uint16_t getNewPos(uint16_t id, uint16_t old_pos){
         return pos_idx[id][old_pos];
+    }
+
+    void save(std::ofstream& out_fp){
+        for (auto& ri : this->ref_to_id){
+            out_fp << ri.first << "\t" << ri.second << std::endl;
+        }
     }
 
 private:
