@@ -22,6 +22,7 @@ public:
     ~MSA() = default;
 
     void to_msa(std::string out_msa_fname);
+    void to_fasta(std::string out_fasta_fname);
 
     void save_graph(std::string out_graph_fname);
 
@@ -36,6 +37,7 @@ private:
     void parse_msa();
     void serialize();
     void save_graph_info(std::string out_graph_info_fname);
+    void save_graph_contig_info(std::string out_graph_contig_info_fname);
     void _save_graph(std::string out_graph_fname);
 
 

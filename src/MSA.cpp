@@ -124,9 +124,55 @@ void MSA::to_msa(std::string out_msa_fname) {
     msa_fp.close();
 }
 
+// this function outputs the FASTA sequences into a file without MSA information
+void MSA::to_fasta(std::string out_msa_fname) {
+    std::ofstream msa_fp(out_msa_fname.c_str());
+
+    int glen = this->graph.get_len();
+    int gnum_ref = this->graph.get_num_refs();
+
+    MSA_Vertex cur_vt;
+
+    for(int n=0;n<gnum_ref;n++){
+        msa_fp << ">" <<this->graph.get_id(n) << std::endl; // save name
+        
+        int line_count = 0;
+        bool line_started = false;
+        for(int i=0;i<glen;i++){ // output the sequence of the current reference genome
+            if (line_count%60 == 0 && line_started){ // break sequence at certain number of characters
+                msa_fp<<std::endl;
+                line_started = false;
+            }
+            this->IUPAC_it = this->IUPAC.find(this->graph.get_nt(i,n));
+            if(this->IUPAC_it != this->IUPAC.end()){
+                msa_fp<<this->IUPAC_it->second;
+                line_count++;
+                line_started = true;
+            }
+        }
+        msa_fp<<std::endl;
+    }
+
+    msa_fp.close();
+}
+
 void MSA::save_graph(std::string out_graph_base_name) {
+
+    if(out_graph_base_name.rfind('/')==out_graph_base_name.length()-1){
+        out_graph_base_name.pop_back();
+    }
+
     MSA::_save_graph(out_graph_base_name);
     MSA::save_graph_info(out_graph_base_name);
+    MSA::save_graph_contig_info(out_graph_base_name);
+
+    std::string msa_fname(out_graph_base_name);
+    msa_fname.append("/db.mus");
+    MSA::to_msa(msa_fname);
+
+    std::string fasta_fname(out_graph_base_name);
+    fasta_fname.append("/db.fasta");
+    MSA::to_fasta(fasta_fname);
 }
 
 
@@ -134,28 +180,39 @@ void MSA::serialize() {
 
 }
 
-void MSA::_save_graph(std::string out_graph_fname){
-    std::ofstream graph_fp(out_graph_fname.c_str());
+// save the actual graph datastructure
+void MSA::_save_graph(std::string out_base){
+    std::string graph_fname(out_base);
+    graph_fname.append("/db.graph");
+    std::ofstream graph_fp(graph_fname.c_str());
 
-    int glen = this->graph.get_len();
-    int gnum_ref = this->graph.get_num_refs();
-
-    MSA_Vertex cur_vt;
-
-
+    graph_fp << this->graph.get_len() << std::endl;
+    graph_fp << this->graph.get_num_refs() << std::endl;
 
     graph_fp.close();
 }
 
-void MSA::save_graph_info(std::string out_graph_info_fname){
-    std::ofstream graph_info_fp(out_graph_info_fname.c_str());
+// save general info such as length, number of references, etc
+void MSA::save_graph_info(std::string out_base){
 
-    int glen = this->graph.get_len();
-    int gnum_ref = this->graph.get_num_refs();
+    std::string graph_fname(out_base);
+    graph_fname.append("/db.info");
+    std::ofstream graph_fp(graph_fname.c_str());
 
-    MSA_Vertex cur_vt;
+    graph_fp << this->graph.get_len() << std::endl;
+    graph_fp << this->graph.get_num_refs() << std::endl;
 
+    graph_fp.close();
+}
 
+// save information with contig names and corresponding ids
+void MSA::save_graph_contig_info(std::string out_base){
+    std::string graph_fname(out_base);
+    graph_fname.append("/db.contig");
+    std::ofstream graph_fp(graph_fname.c_str());
 
-    graph_info_fp.close();
+    graph_fp << this->graph.get_len() << std::endl;
+    graph_fp << this->graph.get_num_refs() << std::endl;
+
+    graph_fp.close();
 }

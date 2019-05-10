@@ -51,7 +51,7 @@ int vest_build(int argc,char* argv[]){
 
     MSA msa(args_build.get_string(MUS_FP));
 
-    msa.to_msa("./vestDB_24/db2msa.mus");
+    msa.save_graph(args_build.get_string(MUS_DB));
 
     return 0;
 }
