@@ -215,3 +215,116 @@ void MSA::save_graph_contig_info(std::string out_base){
 
     graph_fp.close();
 }
+
+void MSA::load_graph(std::string in_graph_fname) {
+    // first check that everything is there
+    // then load the componenets
+    if(in_graph_fname.rfind('/')==in_graph_fname.length()-1){
+        in_graph_fname.pop_back();
+    }
+    std::string graph_fname(in_graph_fname);
+    graph_fname.append("/db.graph");
+    std::string info_fname(in_graph_fname);
+    info_fname.append("/db.info");
+    std::string contig_info_fname(in_graph_fname);
+    contig_info_fname.append("/db.contig");
+    std::string mus_fname(in_graph_fname);
+    mus_fname.append("/db.mus");
+    std::string fasta_fname(in_graph_fname);
+    fasta_fname.append("/db.fasta");
+
+    std::ifstream info_fp;
+    info_fp.open(info_fname.c_str(),std::ios::in);
+    if(!info_fp.good()){
+        std::cerr<<"FATAL: Couldn't open graph information data: "<<info_fname<<std::endl;
+        exit(1);
+    }
+
+    MSA::load_graph_info(info_fp);
+    info_fp.close();
+
+    std::ifstream contig_info_fp;
+    contig_info_fp.open(contig_info_fname.c_str(),std::ios::in);
+    if(!contig_info_fp.good()){
+        std::cerr<<"FATAL: Couldn't open contig information file: "<<contig_info_fname<<std::endl;
+        exit(1);
+    }
+    MSA::load_graph_contig_info(contig_info_fp);
+    contig_info_fp.close();
+
+    std::ifstream graph_fp;
+    graph_fp.open(graph_fname.c_str(),std::ios::in);
+    if(!graph_fp.good()){
+        std::cerr<<"FATAL: Couldn't open graph contents file: "<<graph_fname<<std::endl;
+        exit(1);
+    }
+    MSA::_load_graph(graph_fp);
+    graph_fp.close();
+}
+
+void MSA::load_graph_info(std::ifstream& stream) {
+    std::ios::sync_with_stdio(false);
+    std::string line;
+
+    // first get length
+    std::getline(stream,line);
+    this->msa_len = std::stoi(line);
+
+    // next get number of references
+    std::getline(stream,line);
+    this->num_refs = std::stoi(line);
+
+    this->graph = MSA_Graph(this->msa_len,this->num_refs); // initialize the graph here
+}
+
+void MSA::load_graph_contig_info(std::ifstream& stream) {
+    // after the graph has been initialized we can now proceed to provide contig information
+    std::ios::sync_with_stdio(false);
+    std::string line;
+    std::stringstream ss("");
+    std::string ref_id, ref_name;
+    while(std::getline(stream,line)) { // iterate over references
+        ss.str(line);
+        ss.clear();
+
+        std::getline(ss, ref_name, '\t');
+        std::getline(ss, ref_id, '\t');
+        this->graph.add_ref(ref_name,std::stoi(ref_id));
+    }
+}
+
+void MSA::_load_graph(std::ifstream& stream) {
+    // now that everything else has been initialized - time to load vertices and edges into the graph
+    std::ios::sync_with_stdio(false);
+    std::string line;
+    std::stringstream ss(""),sub_ss("");
+    std::string vt_pos, vt_contents, ref_id, nt, edge;
+    MSA_Vertex mv;
+
+    while(std::getline(stream,line)) { // iterate over references
+        ss.str(line);
+        ss.clear();
+
+        std::getline(ss, vt_pos, '\t');
+        std::getline(ss, vt_contents, '\n');
+
+        ss.str(vt_contents);
+        ss.clear();
+
+        mv = MSA_Vertex(this->num_refs,std::stoi(vt_pos));
+
+        while(std::getline(ss,vt_contents,'\t')) { // iterate over all contents of the vertex
+            sub_ss.str(vt_contents);
+            sub_ss.clear();
+            std::getline(sub_ss, ref_id, ':');
+            std::getline(sub_ss, nt, ';');
+            std::getline(sub_ss, edge);
+
+            mv.add_snp(nt,std::stoi(ref_id));
+            if(std::stoi(edge) != 0){
+                mv.add_edge(std::stoi(edge),std::stoi(ref_id));
+            }
+        }
+        this->graph.add_vertex(std::stoi(vt_pos),mv);
+    }
+}

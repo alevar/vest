@@ -8,6 +8,8 @@
 #include <algorithm>
 #include <iostream>
 #include <fstream>
+#include <sstream>
+#include <string>
 #include <queue>
 #include <stack>
 #include <map>
@@ -26,6 +28,8 @@ public:
 
     void save_graph(std::string out_graph_fname);
 
+    void load_graph(std::string in_graph_fname);
+
 private:
     std::string msa_fname;
     FILE* msa_fhandle;
@@ -36,9 +40,13 @@ private:
 
     void parse_msa();
     void serialize();
-    void save_graph_info(std::string out_graph_info_fname);
-    void save_graph_contig_info(std::string out_graph_contig_info_fname);
-    void _save_graph(std::string out_graph_fname);
+    void save_graph_info(std::string out_base);
+    void save_graph_contig_info(std::string out_base);
+    void _save_graph(std::string out_base);
+
+    void load_graph_info(std::ifstream& stream);
+    void load_graph_contig_info(std::ifstream& stream);
+    void _load_graph(std::ifstream& stream);
 
 
     // IUPAC definitions

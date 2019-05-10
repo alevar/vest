@@ -16,7 +16,7 @@ public:
     MSA_Index() = default;
     ~MSA_Index() = default;
 
-    uint16_t addRef(std::string& ref){
+    uint16_t add_ref(std::string ref){
         ri_it = ref_to_id.insert(std::make_pair(ref,maxID));
         if (ri_it.second){ // successfully inserted new reference sequence
             ir_it = id_to_ref.insert(std::make_pair(maxID,ref));
@@ -32,6 +32,15 @@ public:
             std::cerr<<"detected duplicate sequences"<<std::endl;
         }
         return ri_it.first->second;
+    }
+
+    void add_ref(std::string ref_name, int ref_id){
+        ri_it = ref_to_id.insert(std::make_pair(ref_name,ref_id));
+        if (!ri_it.second){
+            std::cerr<<"duplicate reference IDs detected"<<std::endl;
+            exit(1);
+        }
+        id_to_ref.insert(std::make_pair(ref_id,ref_name));
     }
 
     uint16_t getID(std::string& ref){

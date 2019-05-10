@@ -19,10 +19,13 @@ public:
     MSA_Graph(int length, int num_refs);
     ~MSA_Graph() = default;
 
-    uint16_t add_ref(std::string& ref_name);
+    uint16_t add_ref(std::string ref_name);
+    void add_ref(std::string ref_name,int ref_id);
     void add_pos(uint16_t id,uint32_t old_pos,uint32_t new_pos);
     void add_snp(std::string nt,uint32_t pos,uint16_t ref_id);
     void add_edge(uint32_t prev,uint32_t next, uint16_t ref_id);
+    void add_vertex(int pos, MSA_Vertex mv);
+
     MSA_Vertex* get_vertex(uint32_t pos);
 
     std::string get_id(uint16_t id);

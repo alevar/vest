@@ -49,6 +49,11 @@ public:
         }
     }
 
+    void change(int pos,OBJ ob) {
+        vkeys[pos] = ob;
+        hkeys[ob] = pos;
+    }
+
     void remove(OBJ ob) {
         uint32_t idx = hkeys[ob];
         vkeys[idx] = vkeys[vkeys.size()-1];

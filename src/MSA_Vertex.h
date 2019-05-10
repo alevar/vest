@@ -24,9 +24,6 @@ public:
     ~MSA_Vertex() = default;
 
     void add_snp(std::string nt, uint16_t ref){
-//        if (this->contents[ref].first.empty()){
-//            this->contents[ref].first = "";
-//        }
         this->contents[ref].first += nt;
     }
 
@@ -67,9 +64,9 @@ public:
 
         for(int i=0;i<this->contents.size();i++){
             if(!this->contents[i].first.empty()){ // only store those that are not empty
-                out_fp << i << ":" << this->contents[i].first;
-                if(this->contents[i].second != 0){
-                    out_fp << "-";
+                out_fp << i << ":" << this->contents[i].first<<";";
+                if(this->contents[i].second == 0){
+                    out_fp << "0";
                 }
                 else{
                     out_fp << this->contents[i].second;

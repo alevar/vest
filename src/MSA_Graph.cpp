@@ -15,8 +15,12 @@ MSA_Graph::MSA_Graph(int length,int num_refs) {
 }
 
 // this function adds a reference name to the index and create a unique ID
-uint16_t MSA_Graph::add_ref(std::string& ref_name) {
-    return this->index.addRef(ref_name);
+uint16_t MSA_Graph::add_ref(std::string ref_name) {
+    return this->index.add_ref(ref_name);
+}
+
+void MSA_Graph::add_ref(std::string ref_name, int ref_id){
+    this->index.add_ref(ref_name,ref_id);
 }
 
 // this function sets a mapping between old and new positions in the refence/MSA
@@ -66,4 +70,8 @@ void MSA_Graph::save_graph(std::ofstream &out_fp) {
         mv = this->vertices.get(i);
         mv->save(out_fp);
     }
+}
+
+void MSA_Graph::add_vertex(int pos,MSA_Vertex mv) {
+    this->vertices.change(pos,mv);
 }

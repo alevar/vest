@@ -52,6 +52,9 @@ int vest_realign(int argc,char* argv[]){
 
     args_realign.parse_args(argc,argv);
 
+    MSA msa;
+    msa.load_graph(args_realign.get_string(MUS_DB));
+
     return 0;
 }
 
