@@ -328,3 +328,21 @@ void MSA::_load_graph(std::ifstream& stream) {
         this->graph.add_vertex(std::stoi(vt_pos),mv);
     }
 }
+
+// reads one BAM file and outputs realigned one
+void MSA::realign_bam(std::string in_sam, std::string out_sam) {
+
+    samFile* in_al=hts_open(in_sam.c_str(),"r");
+    bam_hdr_t* in_al_hdr=sam_hdr_read(in_al); // read the alignment header
+    bam1_t* in_rec=bam_init1(); // initialize the alignment
+
+
+    while(sam_read1(in_al,in_al_hdr,in_rec)>0) {
+        std::cerr << bam_get_qname(in_rec) <<std::endl;
+    }
+}
+
+// same as realign_bam but for SAM files
+void MSA::realign_sam(std::string in_sam, std::string out_sam) {
+
+}

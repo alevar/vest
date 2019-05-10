@@ -14,6 +14,8 @@
 #include <stack>
 #include <map>
 
+#include <htslib/sam.h>
+
 #include "MSA_Graph.h"
 #include "MSA_Vertex.h"
 
@@ -29,6 +31,9 @@ public:
     void save_graph(std::string out_graph_fname);
 
     void load_graph(std::string in_graph_fname);
+
+    void realign_sam(std::string in_sam, std::string out_sam);
+    void realign_bam(std::string in_sam, std::string out_sam);
 
 private:
     std::string msa_fname;
