@@ -30,3 +30,15 @@
 *.exe
 *.out
 *.app
+
+# Test Directories
+vestDB*/
+vestOut*/
+hisatDB*/
+hisatOut*/
+notebooks/
+notes
+cmake-build-debug/
+cmake-build-release
+bowtieDB*/
+bowtieOut*/

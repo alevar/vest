@@ -156,7 +156,9 @@ void MSA::to_fasta(std::string out_msa_fname) {
     msa_fp.close();
 }
 
-void MSA::save_graph(std::string out_graph_base_name) {
+void MSA::save_graph(std::string out_graph_base_name, std::string cmd) {
+
+    this->build_cmd = cmd;
 
     if(out_graph_base_name.rfind('/')==out_graph_base_name.length()-1){
         out_graph_base_name.pop_back();
@@ -165,6 +167,7 @@ void MSA::save_graph(std::string out_graph_base_name) {
     MSA::_save_graph(out_graph_base_name);
     MSA::save_graph_info(out_graph_base_name);
     MSA::save_graph_contig_info(out_graph_base_name);
+    MSA::generate_bam_header(out_graph_base_name);
 
     std::string msa_fname(out_graph_base_name);
     msa_fname.append("/db.mus");
@@ -200,6 +203,7 @@ void MSA::save_graph_info(std::string out_base){
 
     graph_fp << this->graph.get_len() << std::endl;
     graph_fp << this->graph.get_num_refs() << std::endl;
+    graph_fp << this->build_cmd << std::endl;
 
     graph_fp.close();
 }
@@ -216,9 +220,24 @@ void MSA::save_graph_contig_info(std::string out_base){
     graph_fp.close();
 }
 
-void MSA::load_graph(std::string in_graph_fname) {
+// generates a sample bam header for the realignment to the given MSA
+void MSA::generate_bam_header(std::string out_base) {
+    std::string bam_header_fname(out_base);
+    bam_header_fname.append("/db.header.bam");
+    std::ofstream bam_header_fp(bam_header_fname.c_str());
+
+    bam_header_fp << "@HD\tVN:1.0\tSO:unsorted" << std::endl;
+    bam_header_fp << "@SQ\tSN:MSA\tLN:" << this->msa_len << std::endl;
+    bam_header_fp << "@PG\tID:Vest\tPN:Vest\tVN:1.0\tCL:" << this->build_cmd << std::endl;
+
+    bam_header_fp.close();
+}
+
+void MSA::load_graph(std::string in_graph_fname, std::string cmd) {
+    this->realign_cmd = cmd;
+
     // first check that everything is there
-    // then load the componenets
+    // then load the components
     if(in_graph_fname.rfind('/')==in_graph_fname.length()-1){
         in_graph_fname.pop_back();
     }
@@ -232,6 +251,8 @@ void MSA::load_graph(std::string in_graph_fname) {
     mus_fname.append("/db.mus");
     std::string fasta_fname(in_graph_fname);
     fasta_fname.append("/db.fasta");
+    this->msa_header_fname = std::string(in_graph_fname);
+    this->msa_header_fname.append("/db.header.bam");
 
     std::ifstream info_fp;
     info_fp.open(info_fname.c_str(),std::ios::in);
@@ -260,6 +281,15 @@ void MSA::load_graph(std::string in_graph_fname) {
     }
     MSA::_load_graph(graph_fp);
     graph_fp.close();
+
+    // check the header file
+    std::ifstream msa_header_fp;
+    msa_header_fp.open(msa_header_fname.c_str(),std::ios::in);
+    if(!msa_header_fp.good()){
+        std::cerr<<"FATAL: Couldn't open graph contents file: "<<msa_header_fname<<std::endl;
+        exit(1);
+    }
+    msa_header_fp.close();
 }
 
 void MSA::load_graph_info(std::ifstream& stream) {
@@ -273,6 +303,10 @@ void MSA::load_graph_info(std::ifstream& stream) {
     // next get number of references
     std::getline(stream,line);
     this->num_refs = std::stoi(line);
+
+    // next get the command used for building the graph
+    std::getline(stream,line);
+    this->build_cmd = line;
 
     this->graph = MSA_Graph(this->msa_len,this->num_refs); // initialize the graph here
 }
@@ -331,6 +365,14 @@ void MSA::_load_graph(std::ifstream& stream) {
 
 // reads one BAM file and outputs realigned one
 void MSA::realign_bam(std::string in_sam, std::string out_sam) {
+    samFile *msa_hdr_fp = hts_open(this->msa_header_fname.c_str(),"r");
+    bam_hdr_t *msa_hdr = sam_hdr_read(msa_hdr_fp);
+
+    samFile *outSAM=sam_open(out_sam.c_str(),"wb");
+    bam_hdr_t *outSAM_header=bam_hdr_init();
+    outSAM_header=bam_hdr_dup(msa_hdr);
+    sam_hdr_write(outSAM,outSAM_header);
+    bam_hdr_destroy(outSAM_header);
 
     samFile* in_al=hts_open(in_sam.c_str(),"r");
     bam_hdr_t* in_al_hdr=sam_hdr_read(in_al); // read the alignment header
@@ -343,10 +385,20 @@ void MSA::realign_bam(std::string in_sam, std::string out_sam) {
 
     bam_destroy1(in_rec);
     sam_close(in_al);
+    sam_close(outSAM);
 }
 
 // same as realign_bam but for SAM files
 void MSA::realign_sam(std::string in_sam, std::string out_sam) {
+    samFile *msa_hdr_fp = hts_open(this->msa_header_fname.c_str(),"r");
+    bam_hdr_t *msa_hdr = sam_hdr_read(msa_hdr_fp);
+
+    samFile *outSAM=sam_open(out_sam.c_str(),"wb");
+    bam_hdr_t *outSAM_header=bam_hdr_init();
+    outSAM_header=bam_hdr_dup(msa_hdr);
+    sam_hdr_write(outSAM,outSAM_header);
+    bam_hdr_destroy(outSAM_header);
+
     samFile *in_al=sam_open(in_sam.c_str(),"r");
     bam_hdr_t *in_al_hdr = sam_hdr_read(in_al); //read header
     in_al_hdr->ignore_sam_err=1;
@@ -354,9 +406,11 @@ void MSA::realign_sam(std::string in_sam, std::string out_sam) {
     int ret;
     while (hts_getline(in_al, 2, &in_al->line)>0) {
         ret = sam_parse1(&in_al->line, in_al_hdr, in_rec);
-        std::cerr << bam_get_qname(in_rec) << std::endl;
+//        std::cerr << bam_get_qname(in_rec) << std::endl;
     }
 
     bam_destroy1(in_rec);
     sam_close(in_al);
+    sam_close(outSAM);
 }
+

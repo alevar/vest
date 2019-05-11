@@ -52,8 +52,19 @@ int vest_realign(int argc,char* argv[]){
 
     args_realign.parse_args(argc,argv);
 
+    std::string cl="vest ";
+    for (int i=0;i<argc;i++){
+        if(i==0){
+            cl+=argv[i];
+        }
+        else{
+            cl+=" ";
+            cl+=argv[i];
+        }
+    }
+
     MSA msa;
-    msa.load_graph(args_realign.get_string(MUS_DB));
+    msa.load_graph(args_realign.get_string(MUS_DB),cl);
 
     if(args_realign.get_string(INPUT_FP).substr(args_realign.get_string(INPUT_FP).find_last_of(".") + 1) == "bam") {
         msa.realign_bam(args_realign.get_string(INPUT_FP),args_realign.get_string(OUTPUT));
@@ -78,7 +89,18 @@ int vest_build(int argc,char* argv[]){
 
     MSA msa(args_build.get_string(MUS_FP));
 
-    msa.save_graph(args_build.get_string(MUS_DB));
+    std::string cl="vest ";
+    for (int i=0;i<argc;i++){
+        if(i==0){
+            cl+=argv[i];
+        }
+        else{
+            cl+=" ";
+            cl+=argv[i];
+        }
+    }
+
+    msa.save_graph(args_build.get_string(MUS_DB),cl);
 
     return 0;
 }

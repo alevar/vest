@@ -12,6 +12,8 @@
 #include <string>
 #include <queue>
 #include <stack>
+#include <stdio.h>
+#include <stdlib.h>
 #include <map>
 
 #include <htslib/sam.h>
@@ -28,18 +30,22 @@ public:
     void to_msa(std::string out_msa_fname);
     void to_fasta(std::string out_fasta_fname);
 
-    void save_graph(std::string out_graph_fname);
+    void save_graph(std::string out_graph_fname,std::string cmd);
 
-    void load_graph(std::string in_graph_fname);
+    void load_graph(std::string in_graph_fname, std::string cmd);
 
     void realign_sam(std::string in_sam, std::string out_sam);
     void realign_bam(std::string in_sam, std::string out_sam);
 
 private:
     std::string msa_fname;
+    std::string msa_header_fname;
     FILE* msa_fhandle;
     int msa_len = 0; // number of nucleotides in the msa
     int num_refs = 0;
+
+    std::string build_cmd = ""; // command used for building the graph
+    std::string realign_cmd = ""; // command used for realigning the graph
 
     MSA_Graph graph;
 
@@ -48,6 +54,7 @@ private:
     void save_graph_info(std::string out_base);
     void save_graph_contig_info(std::string out_base);
     void _save_graph(std::string out_base);
+    void generate_bam_header(std::string out_base);
 
     void load_graph_info(std::ifstream& stream);
     void load_graph_contig_info(std::ifstream& stream);
