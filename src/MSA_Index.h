@@ -62,6 +62,10 @@ public:
         return pos_idx[id][old_pos];
     }
 
+    uint16_t getNewPos(std::string& ref_name, uint16_t old_pos){
+        return pos_idx[ref_to_id[ref_name]][old_pos];
+    }
+
     void save(std::ofstream& out_fp){
         for (auto& ri : this->ref_to_id){
             out_fp << ri.first << "\t" << ri.second << std::endl;

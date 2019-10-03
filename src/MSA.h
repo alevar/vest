@@ -34,8 +34,7 @@ public:
 
     void load_graph(std::string in_graph_fname, std::string cmd);
 
-    void realign_sam(std::string in_sam, std::string out_sam);
-    void realign_bam(std::string in_sam, std::string out_sam);
+    void realign(std::string in_sam,std::string out_sam);
 
 private:
     std::string msa_fname;
@@ -48,6 +47,10 @@ private:
     std::string realign_cmd = ""; // command used for realigning the graph
 
     MSA_Graph graph;
+
+    bool isMod(bam1_t* in_rec);
+    void split_read(bam1_t* in_rec,samFile* outSAM);
+    void write_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr_t* outSAM_header);
 
     void parse_msa();
     void serialize();

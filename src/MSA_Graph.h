@@ -31,6 +31,7 @@ public:
     std::string get_id(uint16_t id);
     int get_num_refs();
     int get_len();
+    int get_new_position(std::string& ref_name,int pos);
 
     std::string get_nt(uint32_t vt_pos,uint16_t ref_id);
     void save_index(std::ofstream& out_fp);

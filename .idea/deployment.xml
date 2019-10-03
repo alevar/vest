@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="PublishConfigData">
+    <serverData>
+      <paths name="Remote (9a80b5cc-7d2e-4557-b023-1c452bb3b639)">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/tmp/tmp.YO9bWuUIO7" local="$PROJECT_DIR$" />
+          </mappings>
+        </serverdata>
+      </paths>
+    </serverData>
+  </component>
+</project>

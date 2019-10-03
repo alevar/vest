@@ -261,6 +261,7 @@ void MSA::load_graph(std::string in_graph_fname, std::string cmd) {
         exit(1);
     }
 
+    std::cerr<<"@LOG:::: Begin loading graph"<<std::endl;
     MSA::load_graph_info(info_fp);
     info_fp.close();
 
@@ -363,33 +364,37 @@ void MSA::_load_graph(std::ifstream& stream) {
     }
 }
 
-// reads one BAM file and outputs realigned one
-void MSA::realign_bam(std::string in_sam, std::string out_sam) {
-    samFile *msa_hdr_fp = hts_open(this->msa_header_fname.c_str(),"r");
-    bam_hdr_t *msa_hdr = sam_hdr_read(msa_hdr_fp);
+bool MSA::isMod(bam1_t* in_rec){
+    for (uint8_t c=0;c<in_rec->core.n_cigar;++c){
+        uint32_t *cigar_full=bam_get_cigar(in_rec);
+        int opcode=bam_cigar_op(cigar_full[c]);
+        int length=bam_cigar_oplen(cigar_full[c]);
 
-    samFile *outSAM=sam_open(out_sam.c_str(),"wb");
-    bam_hdr_t *outSAM_header=bam_hdr_init();
-    outSAM_header=bam_hdr_dup(msa_hdr);
-    sam_hdr_write(outSAM,outSAM_header);
-    bam_hdr_destroy(outSAM_header);
-
-    samFile* in_al=hts_open(in_sam.c_str(),"r");
-    bam_hdr_t* in_al_hdr=sam_hdr_read(in_al); // read the alignment header
-    bam1_t* in_rec=bam_init1(); // initialize the alignment
-
-
-    while(sam_read1(in_al,in_al_hdr,in_rec)>0) {
-        std::cerr << bam_get_qname(in_rec) <<std::endl;
+        if (opcode==BAM_CINS || opcode==BAM_CDEL || opcode==BAM_CREF_SKIP){
+            return true;
+        }
+        else{
+            continue;
+        }
     }
-
-    bam_destroy1(in_rec);
-    sam_close(in_al);
-    sam_close(outSAM);
+    return false;
 }
 
-// same as realign_bam but for SAM files
-void MSA::realign_sam(std::string in_sam, std::string out_sam) {
+void MSA::write_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr_t* outSAM_header){
+    std::string ref_name = std::string(in_al_hdr->target_name[in_rec->core.tid]);
+    in_rec->core.tid = 0;
+    in_rec->core.pos = this->graph.get_new_position(ref_name,in_rec->core.pos-1);
+//    int new_end = this->graph.get_new_position(ref,in_rec->core.)
+
+    int ret_val = sam_write1(outSAM, outSAM_header, in_rec);
+}
+
+// split read based on the cigar string (Deletion/Insertion/SpliceSite)
+void MSA::split_read(bam1_t* in_rec,samFile* outSAM){
+
+}
+
+void MSA::realign(std::string in_sam,std::string out_sam){
     samFile *msa_hdr_fp = hts_open(this->msa_header_fname.c_str(),"r");
     bam_hdr_t *msa_hdr = sam_hdr_read(msa_hdr_fp);
 
@@ -404,9 +409,15 @@ void MSA::realign_sam(std::string in_sam, std::string out_sam) {
     in_al_hdr->ignore_sam_err=1;
     bam1_t *in_rec = bam_init1(); //initialize an alignment
     int ret;
-    while (hts_getline(in_al, 2, &in_al->line)>0) {
-        ret = sam_parse1(&in_al->line, in_al_hdr, in_rec);
-//        std::cerr << bam_get_qname(in_rec) << std::endl;
+
+    while(sam_read1(in_al, in_al_hdr, in_rec) >= 0) {
+        std::cout<<bam_get_qname(in_rec)<<std::endl;
+        if(isMod(in_rec)){
+            split_read(in_rec,outSAM);
+        }
+        else{
+            write_read(in_rec,in_al_hdr,outSAM,outSAM_header);
+        }
     }
 
     bam_destroy1(in_rec);
