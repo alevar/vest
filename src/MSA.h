@@ -6,6 +6,7 @@
 #define VEST_MSA_H
 
 #include <algorithm>
+#include <iterator>
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -20,6 +21,8 @@
 
 #include "MSA_Graph.h"
 #include "MSA_Vertex.h"
+
+#define MAX_CIGARS 1024
 
 class MSA {
 public:
@@ -49,11 +52,10 @@ private:
     MSA_Graph graph;
 
     bool isMod(bam1_t* in_rec);
-    void split_read(bam1_t* in_rec,samFile* outSAM);
+    void split_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr_t* outSAM_header);
     void write_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr_t* outSAM_header);
 
     void parse_msa();
-    void serialize();
     void save_graph_info(std::string out_base);
     void save_graph_contig_info(std::string out_base);
     void _save_graph(std::string out_base);
@@ -62,6 +64,8 @@ private:
     void load_graph_info(std::ifstream& stream);
     void load_graph_contig_info(std::ifstream& stream);
     void _load_graph(std::ifstream& stream);
+
+    bool change_data(bam1_t *in_rec,int num_cigars,int* cigars,int cur_start,int cur_len,bool shift);
 
 
     // IUPAC definitions

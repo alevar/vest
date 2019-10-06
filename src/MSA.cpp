@@ -79,7 +79,7 @@ void MSA::parse_msa() {
                 }
                 else{
                     if (cur_genome.seq_[i-1] != '-' && i != 0){
-                        this->graph.add_edge(i-1,1,cur_genome_id);
+                        this->graph.add_edge(i-1,i,cur_genome_id);
                     }
                 }
             }
@@ -176,11 +176,11 @@ void MSA::save_graph(std::string out_graph_base_name, std::string cmd) {
     std::string fasta_fname(out_graph_base_name);
     fasta_fname.append("/db.fasta");
     MSA::to_fasta(fasta_fname);
-}
 
-
-void MSA::serialize() {
-
+    // save merged reference
+    std::string merged_fasta_fname(out_graph_base_name);
+    merged_fasta_fname.append("/db.merged.fasta");
+    this->graph.save_merged_fasta(merged_fasta_fname);
 }
 
 // save the actual graph datastructure
@@ -189,9 +189,15 @@ void MSA::_save_graph(std::string out_base){
     graph_fname.append("/db.graph");
     std::ofstream graph_fp(graph_fname.c_str());
 
+    std::string graph_dot_fname(out_base);
+    graph_dot_fname.append("/db.graph.dot");
+    std::ofstream graph_dot_fp(graph_dot_fname.c_str());
+
     this->graph.save_graph(graph_fp);
+    this->graph.save_graph2dot(graph_dot_fp);
 
     graph_fp.close();
+    graph_dot_fp.close();
 }
 
 // save general info such as length, number of references, etc
@@ -317,14 +323,23 @@ void MSA::load_graph_contig_info(std::ifstream& stream) {
     std::ios::sync_with_stdio(false);
     std::string line;
     std::stringstream ss("");
-    std::string ref_id, ref_name;
+    std::string ref_id, ref_name,positions;
     while(std::getline(stream,line)) { // iterate over references
         ss.str(line);
         ss.clear();
 
         std::getline(ss, ref_name, '\t');
         std::getline(ss, ref_id, '\t');
+        std::getline(ss,positions,'\t');
         this->graph.add_ref(ref_name,std::stoi(ref_id));
+
+        std::stringstream pos_ss(positions);
+        std::string pos;
+        int old_pos = 0;
+        while (std::getline(pos_ss, pos, ',')) {
+            this->graph.add_pos(std::stoi(ref_id),old_pos,std::stoi(pos));
+            old_pos++;
+        }
     }
 }
 
@@ -383,15 +398,196 @@ bool MSA::isMod(bam1_t* in_rec){
 void MSA::write_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr_t* outSAM_header){
     std::string ref_name = std::string(in_al_hdr->target_name[in_rec->core.tid]);
     in_rec->core.tid = 0;
-    in_rec->core.pos = this->graph.get_new_position(ref_name,in_rec->core.pos-1);
-//    int new_end = this->graph.get_new_position(ref,in_rec->core.)
+    in_rec->core.pos = this->graph.get_new_position(ref_name,in_rec->core.pos);
 
     int ret_val = sam_write1(outSAM, outSAM_header, in_rec);
 }
 
-// split read based on the cigar string (Deletion/Insertion/SpliceSite)
-void MSA::split_read(bam1_t* in_rec,samFile* outSAM){
+void print_cigar(bam1_t *al){
+    for (uint8_t c=0;c<al->core.n_cigar;++c){
+        uint32_t *cigar_full=bam_get_cigar(al);
+        int opcode=bam_cigar_op(cigar_full[c]);
+        int length=bam_cigar_oplen(cigar_full[c]);
+        std::cout<<length<<bam_cigar_opchr(opcode);
+    }
+    std::cout<<std::endl;
+}
 
+void print_seq(bam1_t *new_rec){
+    int32_t qlen = new_rec->core.l_qseq;
+    int8_t *buf = NULL;
+    buf = static_cast<int8_t *>(realloc(buf, qlen+1));
+    buf[qlen] = '\0';
+    uint8_t* seq = bam_get_seq(new_rec);
+    for (int i = 0; i < qlen; ++i)
+        buf[i] = bam_seqi(seq, i);
+    for (int i = 0; i < qlen; ++i) {
+        buf[i] = seq_nt16_str[buf[i]];
+    }
+    std::string str_seq((char*)(char*)buf);
+    std::cout<<str_seq<<std::endl;
+}
+
+void print_qual(bam1_t *new_rec){
+//    int32_t qlen = new_rec->core.l_qseq;
+//    int8_t *buf = NULL;
+//    buf = static_cast<int8_t *>(realloc(buf, qlen+1));
+//    buf[qlen] = '\0';
+//    uint8_t* seq = bam_get_qual(new_rec);
+//    for (int i = 0; i < qlen; ++i)
+//        buf[i] = bam_seqi(seq, i);
+//    for (int i = 0; i < qlen; ++i) {
+//        buf[i] = seq_nt16_str[buf[i]];
+//    }
+//    std::string str_seq((char*)(char*)buf);
+    std::cout<<bam_get_qual(new_rec)<<std::endl;
+}
+
+bool MSA::change_data(bam1_t *in_rec,int num_cigars,int* cigars,int cur_start,int cur_len,bool shift){
+    int old_num_cigars = in_rec->core.n_cigar;
+
+    int data_len=in_rec->l_data;
+    data_len = data_len - 4*(old_num_cigars - num_cigars); // modify with respect to the shortened new cigar string length
+    data_len = data_len - (in_rec->core.l_qseq - cur_len)/2; // modify with respect to the shortened new sequence string
+    data_len = data_len - (in_rec->core.l_qseq - cur_len); // modify with respect to the shortened new quality string
+
+    int m_data=std::max(data_len,(int)in_rec->m_data);
+    kroundup32(m_data);
+
+    auto* data = (uint8_t*)calloc(m_data,1);
+
+    // copy everything (QNAME) until CIGAR data
+    int copy1_len = (uint8_t*)bam_get_cigar(in_rec) - in_rec->data;
+    memcpy(data, in_rec->data, copy1_len);
+
+    // copy CIGAR data
+    int copy2_len = num_cigars * 4;
+    memcpy(data + copy1_len, cigars, copy2_len);
+
+    // shorten sequence string and copy it over to the new data
+    int first_byte = cur_start/2;
+    shift=false;
+    if(cur_start%2==1){
+        shift=true;
+    }
+    int num_bytes = cur_len/2;
+    if(shift){
+        num_bytes++;
+    }
+    if(cur_len%2==0){
+        num_bytes++;
+    }
+
+    int res_num_bytes = cur_len/2;
+    if(cur_len%2==1){ // becase there is a shift at both ends - the results will contain one byte less
+        res_num_bytes++;
+    }
+
+//    if(std::strcmp(bam_get_qname(in_rec),"AF004885_119_269_0:0:2_0:0:2_78/1")==0) {
+//        std::cout<<cur_start<<"\t"<<cur_len<<"\t"<<first_byte<<"\t"<<num_bytes<<"\t"<<res_num_bytes<<std::endl;
+//    }
+
+    uint8_t seq_ar[num_bytes];
+    memcpy(seq_ar,bam_get_seq(in_rec)+first_byte,num_bytes);
+    uint8_t *seq = seq_ar;
+
+    if(shift){
+        while (seq < seq_ar+num_bytes-1) {
+            *seq = (*(seq)&0x0F)<<4 | (*(seq+1)&0xF0)>>4; // 0000 1111 - 1111 0000
+            seq++;
+        }
+        *seq = (*(seq)&0x0F)<<4; // 0000 1111
+    }
+
+    memcpy(data + copy1_len + copy2_len, seq_ar, res_num_bytes);
+
+    // shorten quality string and copy it over to the new data
+    memcpy(data + copy1_len + copy2_len + res_num_bytes, bam_get_qual(in_rec)+cur_start, cur_len);
+
+    // copy the remainder of the source data to the destination
+    int copied_len = copy1_len + (old_num_cigars * 4) + ((in_rec->core.l_qseq+1)/2) + in_rec->core.l_qseq;
+    int remain_len = in_rec->l_data - copied_len;
+    memcpy(data + copy1_len + copy2_len + res_num_bytes + cur_len, in_rec->data+copied_len, remain_len);
+
+    in_rec->core.n_cigar = num_cigars;
+
+    free(in_rec->data);
+    in_rec->data = data;
+    in_rec->l_data = data_len;
+    in_rec->m_data = m_data;
+
+    return shift^((cur_len%2)==1);
+}
+
+// split read based on the cigar string (Deletion/Insertion/SpliceSite)
+void MSA::split_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr_t* outSAM_header){
+    int cigars[MAX_CIGARS];
+    int cur_total_pos = in_rec->core.pos; // same as cur_pos but includes the soft clipping bases
+    int cur_start=in_rec->core.pos;
+    int cur_local_start = 0;
+    int cur_len = 0;
+    int num_cigars = 0;
+
+    bam1_t* new_rec = bam_init1();
+    new_rec = bam_dup1(in_rec);
+
+    bool shift = false;
+    for (uint8_t c=0;c<in_rec->core.n_cigar;++c){
+        uint32_t *cigar_full=bam_get_cigar(in_rec);
+        int opcode=bam_cigar_op(cigar_full[c]);
+        int length=bam_cigar_oplen(cigar_full[c]);
+
+        if (opcode==BAM_CINS || opcode==BAM_CDEL || opcode==BAM_CREF_SKIP){
+            shift = change_data(new_rec,num_cigars,cigars,cur_local_start,cur_len,shift);
+            new_rec->core.pos = cur_start;
+            new_rec->core.l_qseq = cur_len;
+            write_read(new_rec,in_al_hdr,outSAM,outSAM_header);
+
+//            if(std::strcmp(bam_get_qname(in_rec),"AF004885_119_269_0:0:2_0:0:2_78/1")==0) {
+//                std::cout<<bam_get_qname(in_rec)<<std::endl;
+//                std::cout<<cur_len<<std::endl;
+//                std::cout<<cur_local_start<<std::endl;
+//
+//                print_seq(in_rec);
+//                print_seq(new_rec);
+//                print_cigar(in_rec);
+//                print_cigar(new_rec);
+//            }
+
+            new_rec = bam_dup1(in_rec);
+            num_cigars = 0;
+            cur_start+=cur_len;
+            cur_local_start += cur_len;
+            cur_len = 0;
+            if(opcode==BAM_CINS){
+                cur_len+=length;
+            }
+            else{
+                cur_start+=length;
+            }
+            cigars[num_cigars]=opcode|(length<<BAM_CIGAR_SHIFT);
+            ++num_cigars;
+        }
+        else{
+            cigars[num_cigars]=opcode|(length<<BAM_CIGAR_SHIFT);
+            ++num_cigars;
+            cur_len+=length;
+        }
+    }
+    shift = change_data(new_rec,num_cigars,cigars,cur_local_start,cur_len,shift);
+    new_rec->core.pos = cur_start;
+    new_rec->core.l_qseq = cur_len;
+    write_read(new_rec,in_al_hdr,outSAM,outSAM_header);
+//    if(std::strcmp(bam_get_qname(in_rec),"AF004885_119_269_0:0:2_0:0:2_78/1")==0) {
+//        std::cout<<bam_get_qname(in_rec)<<std::endl;
+//        std::cout<<cur_len<<std::endl;
+//        std::cout<<cur_local_start<<std::endl;
+//
+//        print_seq(in_rec);
+//        print_seq(new_rec);
+//        print_cigar(in_rec);
+//        print_cigar(new_rec);
+//    }
 }
 
 void MSA::realign(std::string in_sam,std::string out_sam){
@@ -411,9 +607,8 @@ void MSA::realign(std::string in_sam,std::string out_sam){
     int ret;
 
     while(sam_read1(in_al, in_al_hdr, in_rec) >= 0) {
-        std::cout<<bam_get_qname(in_rec)<<std::endl;
         if(isMod(in_rec)){
-            split_read(in_rec,outSAM);
+            split_read(in_rec,in_al_hdr,outSAM,outSAM_header);
         }
         else{
             write_read(in_rec,in_al_hdr,outSAM,outSAM_header);

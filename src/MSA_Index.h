@@ -24,7 +24,10 @@ public:
                 std::cerr<<"something is wrong with the index. reference did not exist, but the id exists"<<std::endl;
             }
             else{
-                pos_idx.insert(std::make_pair(maxID,std::vector<uint32_t>()));
+                if(pos_idx.size()<maxID){
+                    pos_idx.resize(maxID);
+                    pos_idx[maxID] = std::vector<uint32_t>();
+                }
             }
             maxID++;
         }
@@ -68,15 +71,23 @@ public:
 
     void save(std::ofstream& out_fp){
         for (auto& ri : this->ref_to_id){
-            out_fp << ri.first << "\t" << ri.second << std::endl;
+            out_fp << ri.first << "\t" << ri.second << "\t";
+            bool first = true;
+            for(auto& v : this->pos_idx[ri.second]){
+                if(!first){
+                    out_fp<<",";
+                }
+                first=false;
+                out_fp<<v;
+            }
+            out_fp<<std::endl;
         }
     }
 
 private:
     uint16_t maxID = 0;
 
-    std::unordered_map<uint16_t,std::vector<uint32_t> > pos_idx; // for each position in the reference lists position within MSA
-    std::pair<std::unordered_map<uint16_t,std::vector<uint32_t> >::iterator,bool> pi_it;
+    std::vector<std::vector<uint32_t>> pos_idx; // for each position in the reference lists position within MSA where the index within the outer vector is the reference id
 
     std::unordered_map<std::string,uint16_t> ref_to_id;
     std::unordered_map<uint16_t,std::string> id_to_ref;
@@ -85,9 +96,12 @@ private:
     std::pair<std::unordered_map<uint16_t,std::string>::iterator,bool> ir_it;
 
     void __add(uint16_t id,uint32_t old_pos,uint32_t new_pos){
+        if(pos_idx.size()<=id || pos_idx.empty()){
+            pos_idx.resize(id+1);
+            pos_idx[id] = std::vector<uint32_t>();
+        }
         pos_idx[id].push_back(new_pos);
     }
-
 };
 
 

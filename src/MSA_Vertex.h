@@ -10,6 +10,7 @@
 #include <vector>
 #include <unordered_map>
 #include <fstream>
+#include <set>
 
 class MSA_Vertex {
 public:
@@ -77,6 +78,36 @@ public:
             }
         }
         out_fp << std::endl;
+    }
+
+    void load(std::string& out_fp){
+
+    }
+
+    void get_nt_string(std::string& res){
+        std::set<char> res_nts;
+        for(auto& v : this->contents){
+            if(!v.first.empty()){
+                for(auto &n : v.first) {
+                    res_nts.insert(n);
+                }
+            }
+        }
+        for(auto& v : res_nts){
+            res+=v;
+        }
+    }
+
+    void get_next_vts(std::vector<int>& next_vts){
+        std::set<int> res_vts;
+        for(auto& v : this->contents){
+            if(!v.first.empty()){
+                res_vts.insert(v.second);
+            }
+        }
+        for(auto& v : res_vts){
+            next_vts.push_back(v);
+        }
     }
 
 private:
