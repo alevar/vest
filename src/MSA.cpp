@@ -446,10 +446,29 @@ void print_qual(bam1_t *new_rec){
 bool MSA::change_data(bam1_t *in_rec,int num_cigars,int* cigars,int cur_start,int cur_len,bool shift){
     int old_num_cigars = in_rec->core.n_cigar;
 
-    int data_len=in_rec->l_data;
-    data_len = data_len - 4*(old_num_cigars - num_cigars); // modify with respect to the shortened new cigar string length
-    data_len = data_len - (in_rec->core.l_qseq - cur_len)/2; // modify with respect to the shortened new sequence string
-    data_len = data_len - (in_rec->core.l_qseq - cur_len); // modify with respect to the shortened new quality string
+    int first_byte = cur_start/2;
+    shift=false;
+    if(cur_start%2==1){
+        shift=true;
+    }
+    int num_bytes = (cur_len+1)/2;
+    if(shift){
+        num_bytes++;
+    }
+    if(cur_len%2==0){
+        num_bytes++;
+    }
+
+    int res_num_bytes = cur_len/2;
+    if(cur_len%2==1){ // because there is a shift at both ends - the results will contain one byte less
+        res_num_bytes++;
+    }
+
+//    int data_len=in_rec->l_data;
+//    data_len = data_len - 4*(old_num_cigars - num_cigars); // modify with respect to the shortened new cigar string length
+//    data_len = data_len - (in_rec->core.l_qseq - cur_len)/2; // modify with respect to the shortened new sequence string
+//    data_len = data_len - (in_rec->core.l_qseq - cur_len); // modify with respect to the shortened new quality string
+    int data_len = (in_rec)->core.l_qname + (num_cigars * 4) + res_num_bytes + cur_len + (in_rec->l_data - (((old_num_cigars*4) + (in_rec)->core.l_qname + (((in_rec)->core.l_qseq + 1)/2) + (in_rec)->core.l_qseq)));
 
     int m_data=std::max(data_len,(int)in_rec->m_data);
     kroundup32(m_data);
@@ -465,25 +484,9 @@ bool MSA::change_data(bam1_t *in_rec,int num_cigars,int* cigars,int cur_start,in
     memcpy(data + copy1_len, cigars, copy2_len);
 
     // shorten sequence string and copy it over to the new data
-    int first_byte = cur_start/2;
-    shift=false;
-    if(cur_start%2==1){
-        shift=true;
-    }
-    int num_bytes = cur_len/2;
-    if(shift){
-        num_bytes++;
-    }
-    if(cur_len%2==0){
-        num_bytes++;
-    }
 
-    int res_num_bytes = cur_len/2;
-    if(cur_len%2==1){ // becase there is a shift at both ends - the results will contain one byte less
-        res_num_bytes++;
-    }
-
-//    if(std::strcmp(bam_get_qname(in_rec),"AF004885_119_269_0:0:2_0:0:2_78/1")==0) {
+//    if(std::strcmp(bam_get_qname(in_rec),"AF004885_119_269_0:0:2_0:0:2_78/1")==0 ||
+//       std::strcmp(bam_get_qname(in_rec),"AF004885_1536_1686_0:0:1_0:0:1_0/1")==0) {
 //        std::cout<<cur_start<<"\t"<<cur_len<<"\t"<<first_byte<<"\t"<<num_bytes<<"\t"<<res_num_bytes<<std::endl;
 //    }
 
@@ -505,7 +508,7 @@ bool MSA::change_data(bam1_t *in_rec,int num_cigars,int* cigars,int cur_start,in
     memcpy(data + copy1_len + copy2_len + res_num_bytes, bam_get_qual(in_rec)+cur_start, cur_len);
 
     // copy the remainder of the source data to the destination
-    int copied_len = copy1_len + (old_num_cigars * 4) + ((in_rec->core.l_qseq+1)/2) + in_rec->core.l_qseq;
+    int copied_len = copy1_len + (old_num_cigars * 4) + ((in_rec->core.l_qseq + 1)>>1) + in_rec->core.l_qseq;
     int remain_len = in_rec->l_data - copied_len;
     memcpy(data + copy1_len + copy2_len + res_num_bytes + cur_len, in_rec->data+copied_len, remain_len);
 
@@ -517,6 +520,25 @@ bool MSA::change_data(bam1_t *in_rec,int num_cigars,int* cigars,int cur_start,in
     in_rec->m_data = m_data;
 
     return shift^((cur_len%2)==1);
+}
+
+void MSA::add_split_tags(bam1_t* in_rec,int cur_slice,int opcode,int ref){
+    uint8_t* ptr_op=bam_aux_get(in_rec,"ZA");
+    if(ptr_op){bam_aux_del(in_rec,ptr_op);}
+    bam_aux_append(in_rec,"ZA",'i',4,(uint8_t*)&ref);
+
+    int new_end = this->graph.get_new_position(ref,in_rec->core.pos);
+    ptr_op=bam_aux_get(in_rec,"ZB");
+    if(ptr_op){bam_aux_del(in_rec,ptr_op);}
+    bam_aux_append(in_rec,"ZB",'i',4,(uint8_t*)&new_end);
+
+    ptr_op=bam_aux_get(in_rec,"ZC");
+    if(ptr_op){bam_aux_del(in_rec,ptr_op);}
+    bam_aux_append(in_rec,"ZC",'i',4,(uint8_t*)&cur_slice);
+
+    ptr_op=bam_aux_get(in_rec,"ZD");
+    if(ptr_op){bam_aux_del(in_rec,ptr_op);}
+    bam_aux_append(in_rec,"ZD",'i',4,(uint8_t*)&opcode);
 }
 
 // split read based on the cigar string (Deletion/Insertion/SpliceSite)
@@ -532,18 +554,27 @@ void MSA::split_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr
     new_rec = bam_dup1(in_rec);
 
     bool shift = false;
+    int cur_slice = 0; // which slice within read is this
+    int opcode;
+
+    std::string ref_name = std::string(in_al_hdr->target_name[in_rec->core.tid]);
+    int refID = this->graph.get_id(ref_name); // reference ID of the read
+
     for (uint8_t c=0;c<in_rec->core.n_cigar;++c){
         uint32_t *cigar_full=bam_get_cigar(in_rec);
-        int opcode=bam_cigar_op(cigar_full[c]);
+        opcode=bam_cigar_op(cigar_full[c]);
         int length=bam_cigar_oplen(cigar_full[c]);
 
         if (opcode==BAM_CINS || opcode==BAM_CDEL || opcode==BAM_CREF_SKIP){
             shift = change_data(new_rec,num_cigars,cigars,cur_local_start,cur_len,shift);
             new_rec->core.pos = cur_start;
             new_rec->core.l_qseq = cur_len;
+            add_split_tags(new_rec,cur_slice,opcode,refID);
             write_read(new_rec,in_al_hdr,outSAM,outSAM_header);
+            cur_slice++;
 
-//            if(std::strcmp(bam_get_qname(in_rec),"AF004885_119_269_0:0:2_0:0:2_78/1")==0) {
+//            if(std::strcmp(bam_get_qname(in_rec),"AF004885_119_269_0:0:2_0:0:2_78/1")==0 ||
+//                    std::strcmp(bam_get_qname(in_rec),"AF004885_1536_1686_0:0:1_0:0:1_0/1")==0) {
 //                std::cout<<bam_get_qname(in_rec)<<std::endl;
 //                std::cout<<cur_len<<std::endl;
 //                std::cout<<cur_local_start<<std::endl;
@@ -577,8 +608,10 @@ void MSA::split_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr
     shift = change_data(new_rec,num_cigars,cigars,cur_local_start,cur_len,shift);
     new_rec->core.pos = cur_start;
     new_rec->core.l_qseq = cur_len;
+    add_split_tags(new_rec,cur_slice,0,refID); // 0 opcode here means that this is the last segment in the read
     write_read(new_rec,in_al_hdr,outSAM,outSAM_header);
-//    if(std::strcmp(bam_get_qname(in_rec),"AF004885_119_269_0:0:2_0:0:2_78/1")==0) {
+//    if(std::strcmp(bam_get_qname(in_rec),"AF004885_119_269_0:0:2_0:0:2_78/1")==0 ||
+//       std::strcmp(bam_get_qname(in_rec),"AF004885_1536_1686_0:0:1_0:0:1_0/1")==0) {
 //        std::cout<<bam_get_qname(in_rec)<<std::endl;
 //        std::cout<<cur_len<<std::endl;
 //        std::cout<<cur_local_start<<std::endl;

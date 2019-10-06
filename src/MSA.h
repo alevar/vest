@@ -54,6 +54,7 @@ private:
     bool isMod(bam1_t* in_rec);
     void split_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr_t* outSAM_header);
     void write_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr_t* outSAM_header);
+    void add_split_tags(bam1_t* in_rec,int cur_slice,int opcode, int ref);
 
     void parse_msa();
     void save_graph_info(std::string out_base);

@@ -29,9 +29,11 @@ public:
     MSA_Vertex* get_vertex(uint32_t pos);
 
     std::string get_id(uint16_t id);
+    int get_id(std::string id);
     int get_num_refs();
     int get_len();
     int get_new_position(std::string& ref_name,int pos);
+    int get_new_position(int refID, int pos);
 
     std::string get_nt(uint32_t vt_pos,uint16_t ref_id);
     void save_index(std::ofstream& out_fp);

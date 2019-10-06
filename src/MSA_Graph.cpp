@@ -47,6 +47,10 @@ std::string MSA_Graph::get_id(uint16_t id) {
     return this->index.getRef(id);
 }
 
+int MSA_Graph::get_id(std::string id){
+    return this->index.getID(id);
+}
+
 int MSA_Graph::get_num_refs() {
     return this->num_refs;
 }
@@ -62,6 +66,10 @@ std::string MSA_Graph::get_nt(uint32_t vt_pos,uint16_t ref_id) {
 
 int MSA_Graph::get_new_position(std::string &ref_name, int pos) {
     return this->index.getNewPos(ref_name,pos);
+}
+
+int MSA_Graph::get_new_position(int refID, int pos) {
+    return this->index.getNewPos(refID,pos);
 }
 
 void MSA_Graph::save_index(std::ofstream& out_fp) {
