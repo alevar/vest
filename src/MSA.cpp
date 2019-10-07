@@ -753,5 +753,16 @@ void MSA::realign(std::string in_sam,std::string out_sam){
     sam_close(in_al);
     sam_close(outSAM);
     std::cerr<<"@LOG::::Done cleaning graph"<<std::endl;
+
+    std::cerr<<"@LOG::::Begin joining reads"<<std::endl;
+
+    std::cerr<<"@LOG::::Done joining reads"<<std::endl;
+}
+
+void MSA::fit_annotation(std::string in_gff, std::string out_gff){
+    std::cerr<<"@LOG::::Begin fitting annotation"<<std::endl;
+    this->graph.fit_annotation(in_gff,out_gff);
+    std::cerr<<"@LOG::""Done loading annotation"<<std::endl;
+    return;
 }
 

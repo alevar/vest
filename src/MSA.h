@@ -39,6 +39,8 @@ public:
 
     void realign(std::string in_sam,std::string out_sam);
 
+    void fit_annotation(std::string in_gff, std::string out_gff);
+
 private:
     std::string msa_fname;
     std::string msa_header_fname;

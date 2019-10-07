@@ -46,8 +46,12 @@ public:
         id_to_ref.insert(std::make_pair(ref_id,ref_name));
     }
 
-    uint16_t getID(std::string& ref){
-        return ref_to_id[ref];
+    int getID(std::string& ref){
+        this->ri_it.first = this->ref_to_id.find(ref);
+        if(this->ri_it.first == this->ref_to_id.end()){
+            return -1;
+        }
+        return ref_to_id[ref];;
     }
     std::string getRef(uint16_t id){
         return id_to_ref[id];

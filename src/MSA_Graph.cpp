@@ -2,6 +2,7 @@
 // Created by sparrow on 5/2/19.
 //
 
+#include <cstring>
 #include "MSA_Graph.h"
 
 MSA_Graph::MSA_Graph(int length,int num_refs) {
@@ -219,4 +220,72 @@ void MSA_Graph::fit_read(int refID,int ref_start,int end,int& new_start, int& s,
     if(end>this->farthestEnd){
         farthestEnd = end;
     }
+}
+
+int MSA_Graph::get_gff_pos(int refID,int pos){
+    int ref_start = get_new_position(refID,pos);
+    int sum_removed = std::accumulate(this->removed.begin(), this->removed.begin()+ref_start, 0);
+    if(removed[ref_start]){
+        std::cerr<<"position has been removed but is still being reported"<<std::endl;
+    }
+    return ref_start-sum_removed;
+}
+
+void MSA_Graph::fit_annotation(std::string in_gff_fname,std::string out_gff_fname){
+    std::ifstream in_gff_fp;
+    in_gff_fp.open(in_gff_fname.c_str(),std::ios::in);
+
+    if(!in_gff_fp.good()){
+        std::cerr<<"@ERROR::::Cannot open GFF to read"<<std::endl;
+        exit(-1);
+    }
+
+    std::ios::sync_with_stdio(false);
+    std::string line;
+    std::stringstream ss("");
+    std::string ref_name,track,feature,start_s,end_s,score,strand,phase,attrs;
+    int start,end;
+
+    std::ofstream out_gff_fp(out_gff_fname.c_str());
+
+    while(std::getline(in_gff_fp,line)) { // iterate over references
+        if(line.front() == '#'){
+            out_gff_fp<<line<<std::endl;
+            continue;
+        }
+        ss.str(line);
+        ss.clear();
+
+        std::getline(ss, ref_name, '\t');
+        int refID = this->index.getID(ref_name);
+        if(refID==-1){
+            std::cerr<<"@ERROR::::GFF Reference sequence not found in the index"<<std::endl;
+            exit(-1);
+        }
+        std::cout<<ref_name<<std::endl;
+        std::getline(ss, track, '\t');
+        std::getline(ss, feature, '\t');
+        std::getline(ss, start_s, '\t');
+        std::getline(ss, end_s, '\t');
+        std::getline(ss, score, '\t');
+        std::getline(ss, strand, '\t');
+        std::getline(ss, phase, '\t');
+        std::getline(ss, attrs, '\t');
+
+        out_gff_fp<<ref_name<<"\t"
+                  <<track<<"\t"
+                  <<feature<<"\t"
+                  <<this->get_gff_pos(refID,std::atoi(start_s.c_str()))<<"\t"
+                  <<this->get_gff_pos(refID,std::atoi(end_s.c_str()))<<"\t"
+                  <<score<<"\t"
+                  <<strand<<"\t"
+                  <<phase<<"\t"
+                  <<attrs<<std::endl;
+
+    }
+
+    out_gff_fp.close();
+    in_gff_fp.close();
+
+    std::cerr << "@LOG::loaded the annotation"<<std::endl;
 }

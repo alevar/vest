@@ -1,9 +1,3 @@
-//
-// Created by Someone.
-// ====================================
-// this class contains an implementation of a simple argument parsing class
-//
-
 #ifndef INCL_ARGPARSE
 #define INCL_ARGPARSE
 
@@ -15,10 +9,13 @@ class ArgParse {
         enum Type {FLAG, INT, DOUBLE, STRING};
 
     private:
+
         typedef struct {
             Type type;
             std::string name, desc;
-            void *value;
+            std::string value;
+            bool required;
+            bool set;
         } Arg;
         
         std::string desc_;
@@ -32,10 +29,10 @@ class ArgParse {
 
         void parse_args(int argc, char **argv);
 
-        bool add_flag(char c, std::string name, std::string desc);
-        bool add_int(char c, std::string name, int def, std::string desc);
-        bool add_double(char c, std::string name, double def, std::string desc);
-        bool add_string(char c, std::string name, std::string def, std::string desc);
+        bool add_flag(char c, std::string name, std::string desc,bool required);
+        bool add_int(char c, std::string name, int def, std::string desc,bool required);
+        bool add_double(char c, std::string name, double def, std::string desc,bool required);
+        bool add_string(char c, std::string name, std::string def, std::string desc,bool required);
 
         std::string get_name(char c);
         std::string get_desc(char c);
@@ -45,8 +42,13 @@ class ArgParse {
         double get_double(char c);
         std::string get_string(char c);
 
+        bool is_set(char c);
+
         std::string get_param_str();
 
+        std::string get_help();
+
 };
+
 
 #endif
