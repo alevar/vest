@@ -110,6 +110,10 @@ public:
         }
     }
 
+    int get_next_pos4ref(int refID){
+        return contents[refID].second;
+    }
+
 private:
     // lookup table where
     // A/a - 0
@@ -158,7 +162,6 @@ private:
     std::vector<std::pair<std::string,uint32_t> > contents = {}; // vector of nucleotides, where nucleotide is kept at the position of the reference id. each position also stores the index of the next vertex in case there exists an edge
     uint32_t pos = 0; // position of the vertex in the MSA
     bool empty = true;
-
 };
 
 #endif //VEST_MSA_VERTEX_H

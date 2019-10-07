@@ -522,7 +522,7 @@ bool MSA::change_data(bam1_t *in_rec,int num_cigars,int* cigars,int cur_start,in
     return shift^((cur_len%2)==1);
 }
 
-void MSA::add_split_tags(bam1_t* in_rec,int cur_slice,int opcode,int ref){
+void MSA::add_orig_ref_tags(bam1_t* in_rec,int ref){
     uint8_t* ptr_op=bam_aux_get(in_rec,"ZA");
     if(ptr_op){bam_aux_del(in_rec,ptr_op);}
     bam_aux_append(in_rec,"ZA",'i',4,(uint8_t*)&ref);
@@ -531,8 +531,10 @@ void MSA::add_split_tags(bam1_t* in_rec,int cur_slice,int opcode,int ref){
     ptr_op=bam_aux_get(in_rec,"ZB");
     if(ptr_op){bam_aux_del(in_rec,ptr_op);}
     bam_aux_append(in_rec,"ZB",'i',4,(uint8_t*)&new_end);
+}
 
-    ptr_op=bam_aux_get(in_rec,"ZC");
+void MSA::add_split_tags(bam1_t* in_rec,int cur_slice,int opcode){
+    uint8_t* ptr_op=bam_aux_get(in_rec,"ZC");
     if(ptr_op){bam_aux_del(in_rec,ptr_op);}
     bam_aux_append(in_rec,"ZC",'i',4,(uint8_t*)&cur_slice);
 
@@ -569,7 +571,8 @@ void MSA::split_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr
             shift = change_data(new_rec,num_cigars,cigars,cur_local_start,cur_len,shift);
             new_rec->core.pos = cur_start;
             new_rec->core.l_qseq = cur_len;
-            add_split_tags(new_rec,cur_slice,opcode,refID);
+            add_orig_ref_tags(new_rec,refID);
+            add_split_tags(new_rec,cur_slice,opcode);
             write_read(new_rec,in_al_hdr,outSAM,outSAM_header);
             cur_slice++;
 
@@ -608,7 +611,8 @@ void MSA::split_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr
     shift = change_data(new_rec,num_cigars,cigars,cur_local_start,cur_len,shift);
     new_rec->core.pos = cur_start;
     new_rec->core.l_qseq = cur_len;
-    add_split_tags(new_rec,cur_slice,0,refID); // 0 opcode here means that this is the last segment in the read
+    add_orig_ref_tags(new_rec,refID);
+    add_split_tags(new_rec,cur_slice,0); // 0 opcode here means that this is the last segment in the read
     write_read(new_rec,in_al_hdr,outSAM,outSAM_header);
 //    if(std::strcmp(bam_get_qname(in_rec),"AF004885_119_269_0:0:2_0:0:2_78/1")==0 ||
 //       std::strcmp(bam_get_qname(in_rec),"AF004885_1536_1686_0:0:1_0:0:1_0/1")==0) {
@@ -623,9 +627,65 @@ void MSA::split_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr
 //    }
 }
 
+// clean the graph based on the specified position
+// TODO: not significant at the moment multiple strategies can be employed:
+//    1. remove everything before current start
+//    2. remove everything before current position but keep preceeding bases from the same reference as the first read
+//    3. remove everything before current position but keep preceeding bases from the specified reference
+//    4. do not remove anything
+void MSA::clean(int first_pos){
+
+}
+
+void MSA::change_cigar(bam1_t* in_rec,int s){
+
+}
+
+void MSA::create_del(bam1_t* in_rec,std::vector<int>& not_removed){
+
+}
+
+void MSA::create_ins(bam1_t* in_rec,std::vector<int>& added){
+
+}
+
+// parse fitted read and adjust the graph
+void MSA::parse_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr_t* outSAM_header){
+    uint8_t* ptr_nm_1=bam_aux_get(in_rec,"ZB");
+    int tag_ref_end = bam_aux2i(ptr_nm_1);
+    ptr_nm_1=bam_aux_get(in_rec,"ZA");
+    int tag_refID = bam_aux2i(ptr_nm_1);
+
+    int in_rec_ref_start = in_rec->core.pos;
+
+    int new_start,s;
+    std::vector<int> not_removed,added;
+
+    this->graph.fit_read(tag_refID,in_rec_ref_start,tag_ref_end,new_start,s,not_removed,added);
+    in_rec_ref_start = new_start;
+    if(in_rec_ref_start != NULL){
+        in_rec->core.pos = in_rec_ref_start;
+        if(s>0){
+            std::cout<<"changing cigar"<<std::endl;
+            change_cigar(in_rec,s);
+        }
+        if(not_removed.size()>0){
+            std::cout<<"creating deletion"<<std::endl;
+            create_del(in_rec,not_removed);
+        }
+        if(added.size()>0){
+            std::cout<<"creating insertion"<<std::endl;
+            create_ins(in_rec,not_removed);
+        }
+        int ret_val = sam_write1(outSAM, outSAM_header, in_rec);
+    }
+}
+
 void MSA::realign(std::string in_sam,std::string out_sam){
     samFile *msa_hdr_fp = hts_open(this->msa_header_fname.c_str(),"r");
     bam_hdr_t *msa_hdr = sam_hdr_read(msa_hdr_fp);
+
+    std::cerr<<"@LOG::::Begin fitting alignments to MSA"<<std::endl;
 
     samFile *outSAM=sam_open(out_sam.c_str(),"wb");
     bam_hdr_t *outSAM_header=bam_hdr_init();
@@ -644,6 +704,9 @@ void MSA::realign(std::string in_sam,std::string out_sam){
             split_read(in_rec,in_al_hdr,outSAM,outSAM_header);
         }
         else{
+            std::string ref_name = std::string(in_al_hdr->target_name[in_rec->core.tid]);
+            int refID = this->graph.get_id(ref_name); // reference ID of the read
+            add_orig_ref_tags(in_rec,refID);
             write_read(in_rec,in_al_hdr,outSAM,outSAM_header);
         }
     }
@@ -651,5 +714,44 @@ void MSA::realign(std::string in_sam,std::string out_sam){
     bam_destroy1(in_rec);
     sam_close(in_al);
     sam_close(outSAM);
+
+    std::cerr<<"@LOG::::Done fitting alignment to MSA"<<std::endl;
+
+    std::cerr<<"@LOG::::Begin sorting fitted alignment"<<std::endl;
+    std::string sam_sort_cmd = "samtools sort -o "+out_sam+".sorted.bam "+out_sam;
+    int res_sam_sort = system(sam_sort_cmd.c_str());
+    std::cerr<<"@LOG::::Done sorting fitted alignment"<<std::endl;
+
+    std::cerr<<"@LOG::::Begin cleaning graph"<<std::endl;
+    outSAM=sam_open(out_sam.c_str(),"wb");
+    outSAM_header=bam_hdr_init();
+    outSAM_header=bam_hdr_dup(msa_hdr);
+    sam_hdr_write(outSAM,outSAM_header);
+    bam_hdr_destroy(outSAM_header);
+
+    std::string sorted_al_fname = out_sam+".sorted.bam";
+    in_al=sam_open(sorted_al_fname.c_str(),"r");
+    in_al_hdr = sam_hdr_read(in_al); //read header
+    in_al_hdr->ignore_sam_err=1;
+    in_rec = bam_init1(); //initialize an alignment
+
+    // get first read
+    sam_read1(in_al, in_al_hdr, in_rec);
+    int first_pos = in_rec->core.pos;
+    this->clean(first_pos);
+
+    parse_read(in_rec,in_al_hdr,outSAM,outSAM_header);
+    while(sam_read1(in_al, in_al_hdr, in_rec) >= 0) {
+        parse_read(in_rec,in_al_hdr,outSAM,outSAM_header);
+    }
+
+    std::string consensus_fa_fname(out_sam);
+    consensus_fa_fname.append(".cons.fasta");
+    this->graph.save_merged_fasta(consensus_fa_fname);
+
+    bam_destroy1(in_rec);
+    sam_close(in_al);
+    sam_close(outSAM);
+    std::cerr<<"@LOG::::Done cleaning graph"<<std::endl;
 }
 

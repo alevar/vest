@@ -6,6 +6,7 @@
 #define VEST_MSA_GRAPH_H
 
 #include <string>
+#include <numeric>
 
 #include "MSA_Vertex.h"
 #include "MSA_Edge.h"
@@ -41,12 +42,23 @@ public:
     void save_graph2dot(std::ofstream &out_fp); // save vertices as a dot file
     void save_merged_fasta(std::string& out_fp);
 
+    void fit_read(int refID,int ref_start,int end,int& newStart, int& s, std::vector<int>& not_removed, std::vector<int>& added);
+    void find_location(int refID, int ref_start, int end, int& new_start, int& s);
+
 private:
     MSA_Index index; // index which holds ref IDs
     int length = 0;
     int num_refs = 0;
 
     MSA_List<MSA_Vertex> vertices;
+
+    // related to updating the vector of removed vertices
+    std::vector<int> removed; // TODO: simple vector for now - needs to be replaced by a more efficient solution
+    int farthestEnd=0; // the value is set to the last position that was processed so far.
+                        // Since reads are sorted with respect to the MSA, any nades prior to this value
+                        // are not to be removed. Instead if a read demands a removal - the cigar of the read
+                        // is to be modified with a respective insertion
+    int memo_refID,memo_end;
 
     // IUPAC definitions
     std::unordered_map<std::string,std::string> IUPAC = std::unordered_map<std::string,std::string>({{"A","A"},
