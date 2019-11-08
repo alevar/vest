@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include <iomanip>
 #include <sstream>
+#include <string>
 #include "arg_parse.h"
 
 ArgParse::ArgParse(std::string desc) {
@@ -10,18 +11,48 @@ ArgParse::ArgParse(std::string desc) {
 
 ArgParse::~ArgParse() = default;
 
+std::string ArgParse::get_help(){
+    std::stringstream ss;
+
+    ss << desc_ << " Help Page"<<std::endl<<std::endl;
+    ss << desc_ <<std::endl;
+    for(auto & arg : args_){ // process required arguments
+        if(arg.second.required){
+            ss<<"-"<<arg.first<<" ";
+        }
+    }
+    bool first = true;
+    for(auto & arg : args_){ // now process non-required arguments
+        if(!arg.second.required){
+            if(first){
+                ss<<"[";
+            }
+            first = false;
+            ss<<"-"<<arg.first<<" ";
+        }
+    }
+    if(!first){
+        ss<<"]";
+    }
+    ss<<std::endl;
+    ss<<"Arguments:"<<std::endl;
+    for(auto & arg : args_){
+        ss<<"\t"<<arg.first<<"/--"<<arg.second.name<<"\t"<<arg.second.desc<<std::endl;
+    }
+    return ss.str();
+}
+
 std::string ArgParse::get_param_str() {
     const std::string DELIM = ".";
     std::stringstream ss;
 
     for (auto a = args_.begin(); a != args_.end(); a++) {
+        std::cout<<a->first<<std::endl;
 
         if (a->second.type != Type::STRING) {
-            
             if (a != args_.begin()) {
                 ss << DELIM;
             }
-
             ss << a->first;
 
             switch(a->second.type) {
@@ -43,7 +74,6 @@ std::string ArgParse::get_param_str() {
             }
         }
     }
-
     return ss.str();
 }
 
@@ -51,17 +81,17 @@ void ArgParse::parse_args(int argc, char **argv) {
 
     std::string opt_str;
 
-    for (auto &arg : args_) {
-        opt_str.push_back(arg.first);
+    for (auto a = args_.begin(); a != args_.end(); a++) {
+        opt_str.push_back(a->first);
 
-        if (arg.second.type != Type::FLAG) {
+        if (a->second.type != Type::FLAG) {
             opt_str.push_back(':');
         }
     }
 
     char o;
 
-    while ((o = static_cast<char>(getopt(argc, argv, opt_str.c_str()))) != -1 ) {
+    while ( (o = getopt(argc, argv, opt_str.c_str())) != -1 ) {
 
         if (args_.count(o) == 0) {
             std::cerr << "Error: unrecognized argument " << o << "\n";
@@ -70,21 +100,22 @@ void ArgParse::parse_args(int argc, char **argv) {
 
         
         Arg &a = args_[o];
+        a.set = true; // this flag is set in the command line
         switch(a.type) {
             case Type::FLAG:
-            *( (bool *) a.value ) = true;
+            a.value = "1";
             break;
 
             case Type::INT:
-            *( (int *) a.value ) = atoi(optarg);
+            a.value = optarg;
             break;
             
             case Type::DOUBLE:
-            *( (double *) a.value ) = atof(optarg);
+            a.value = optarg;
             break;
 
             case Type::STRING:
-            *( (std::string *) a.value ) = std::string(optarg);
+            a.value = optarg;
             break;
             
             default:
@@ -92,50 +123,50 @@ void ArgParse::parse_args(int argc, char **argv) {
             break;
         }
     }
+
+    // now check if all required arguments have been provided
+    for (auto & arg : args_) {
+        if(arg.second.required && !arg.second.set){
+            std::cerr<<"======================================"<<std::endl<<std::endl<<"Missing argument: "<<arg.second.name<<std::endl<<std::endl<<"======================================"<<std::endl<<std::endl;
+            std::cerr<<this->get_help()<<std::endl;
+            exit(1);
+        }
+    }
 }
 
-bool ArgParse::add_flag(char c, std::string name, std::string desc="") {
+bool ArgParse::add_flag(char c, std::string name, std::string desc="",bool required=false) {
 
     if (args_.count(c) > 0) {
         return false;
     }
 
-    bool *val_bool = new bool;
-    *val_bool = false;
-
-    Arg a = {Type::FLAG, name, desc, (void *) val_bool};
+    Arg a = {Type::FLAG, std::move(name), std::move(desc),"0",required,false};
     args_[c] = a;
 
     return true;
 }
 
 bool ArgParse::add_int(char c, std::string name, 
-                       int def, std::string desc="") {
+                       int def, std::string desc="",bool required=false) {
 
     if (args_.count(c) > 0) {
         return false;
     }
 
-    int *val_int = new int;
-    *val_int = def;
-
-    Arg a = {Type::INT, name, desc, (void *) val_int};
+    Arg a = {Type::INT, std::move(name), std::move(desc), std::to_string(def),required,false};
     args_[c] = a;
 
     return true;
 }
 
 bool ArgParse::add_double(char c, std::string name, 
-                          double def, std::string desc="") {
+                          double def, std::string desc="",bool required=false) {
 
     if (args_.count(c) > 0) {
         return false;
     }
 
-    double *val_double = new double;
-    *val_double = def;
-
-    Arg a = {Type::DOUBLE, name, desc, (void *) val_double};
+    Arg a = {Type::DOUBLE, std::move(name), std::move(desc), std::to_string(def),required,false};
     args_[c] = a;
 
     return true;
@@ -143,16 +174,13 @@ bool ArgParse::add_double(char c, std::string name,
 }
 
 bool ArgParse::add_string(char c, std::string name, 
-                          std::string def, std::string desc="") {
+                          std::string def, std::string desc="",bool required=false) {
     
     if (args_.count(c) > 0) {
         return false;
     }
 
-    std::string *val_string = new std::string;
-    *val_string = def;
-
-    Arg a = {Type::STRING, name, desc, (void *) val_string};
+    Arg a = {Type::STRING, std::move(name), std::move(desc),def,required,false};
     args_[c] = a;
 
     return true;
@@ -168,20 +196,25 @@ std::string ArgParse::get_desc(char c) {
 
 bool ArgParse::get_flag(char c) {
     Arg &a = args_[c];
-    return *( (bool *) a.value );
+    return (a.value == "1")?true:false;
 }
 
 int ArgParse::get_int(char c) {
     Arg &a = args_[c];
-    return *( (int *) a.value );
+    return std::stoi(a.value);
 }
 
 double ArgParse::get_double(char c) {
     Arg &a = args_[c];
-    return *( (double *) a.value );
+    return std::stod(a.value);
 }
 
 std::string ArgParse::get_string(char c) {
     Arg &a = args_[c];
-    return *( (std::string *) a.value );
+    return a.value;
+}
+
+bool ArgParse::is_set(char c){
+    Arg &a = args_[c];
+    return a.set;
 }

@@ -15,8 +15,8 @@ int vest_vcf(int argc,char* argv[]){
         OUT_VCF= 'o'};
 
     ArgParse args_vcf("vest_inspect");
-    args_vcf.add_string(Opt_VCF::IN_SAM,"input","","path to the vest-realigned SAM or BAM file");
-    args_vcf.add_string(Opt_VCF::OUT_VCF,"output","","path to the output VCF file");
+    args_vcf.add_string(Opt_VCF::IN_SAM,"input","","path to the vest-realigned SAM or BAM file",true);
+    args_vcf.add_string(Opt_VCF::OUT_VCF,"output","","path to the output VCF file",false);
 
     args_vcf.parse_args(argc,argv);
 
@@ -29,8 +29,8 @@ int vest_inspect(int argc,char* argv[]){
                       OUT_MSA= 'm'};
 
     ArgParse args_inspect("vest_inspect");
-    args_inspect.add_string(Opt_Inspect::MSA_DB,"db","","path to the vest database");
-    args_inspect.add_string(Opt_Inspect::OUT_MSA,"msa","","output file for the MSA encoded in the database");
+    args_inspect.add_string(Opt_Inspect::MSA_DB,"db","","path to the vest database",true);
+    args_inspect.add_string(Opt_Inspect::OUT_MSA,"msa","","output file for the MSA encoded in the database",false);
 
     args_inspect.parse_args(argc,argv);
 
@@ -45,10 +45,10 @@ int vest_realign(int argc,char* argv[]){
                     GFF = 'a'};
 
     ArgParse args_realign("vest_realign");
-    args_realign.add_string(Opt_Realign::INPUT_FP,"input","","path to the input alignment");
-    args_realign.add_string(Opt_Realign::OUTPUT,"output","","base name for the output files");
-    args_realign.add_string(Opt_Realign::MUS_DB,"db","","database build with vest build from the ultiple sequence alignment");
-    args_realign.add_string(Opt_Realign::GFF,"ann","","annotation of genomic features with respect to one of the genomes");
+    args_realign.add_string(Opt_Realign::INPUT_FP,"input","","path to the input alignment",true);
+    args_realign.add_string(Opt_Realign::OUTPUT,"output","","base name for the output files",true);
+    args_realign.add_string(Opt_Realign::MUS_DB,"db","","database build with vest build from the ultiple sequence alignment",true);
+    args_realign.add_string(Opt_Realign::GFF,"ann","","annotation of genomic features with respect to one of the genomes",false);
 
     args_realign.parse_args(argc,argv);
 
@@ -77,8 +77,8 @@ int vest_build(int argc,char* argv[]){
                     MUS_DB   = 'o'};
 
     ArgParse args_build("vest_build");
-    args_build.add_string(Opt_Build::MUS_FP,"mus","","");
-    args_build.add_string(Opt_Build::MUS_DB,"out","","");
+    args_build.add_string(Opt_Build::MUS_FP,"mus","","path to the multiple sequence alignment",true);
+    args_build.add_string(Opt_Build::MUS_DB,"out","","path and basename for the output database",true);
 
     args_build.parse_args(argc,argv);
 

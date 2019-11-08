@@ -2,6 +2,7 @@
 // Created by sparrow on 5/2/19.
 //
 
+#include <cstring>
 #include "MSA_Graph.h"
 
 MSA_Graph::MSA_Graph(int length,int num_refs) {
@@ -12,6 +13,9 @@ MSA_Graph::MSA_Graph(int length,int num_refs) {
     for(int i=0;i<length;i++){
         vertices.insert(MSA_Vertex(num_refs,i));
     }
+
+    // initialize the vector of removed
+    this->removed = std::vector<int>(length,0);
 }
 
 // this function adds a reference name to the index and create a unique ID
@@ -111,15 +115,19 @@ void MSA_Graph::save_merged_fasta(std::string& out_fp){
 
     MSA_Vertex* mv;
     std::string iupac_nt;
+    int cl = 0;
     for(int i=0;i<this->vertices.size();i++){
-        std::string nt_str = "";
-        mv = this->vertices.get(i);
-        mv->get_nt_string(nt_str);
-        iupac_nt = this->IUPAC[nt_str];
-        merged_fp<<iupac_nt;
-        nt_str.clear();
-        if((i+1) % 60 == 0){
-            merged_fp<<std::endl;
+        if(this->removed[i]==0){
+            std::string nt_str = "";
+            mv = this->vertices.get(i);
+            mv->get_nt_string(nt_str);
+            iupac_nt = this->IUPAC[nt_str];
+            merged_fp<<iupac_nt;
+            nt_str.clear();
+            if((cl+1) % 60 == 0){
+                merged_fp<<std::endl;
+            }
+            cl++;
         }
     }
     merged_fp<<std::endl;
@@ -136,4 +144,150 @@ void MSA_Graph::save_merged_fasta(std::string& out_fp){
 
 void MSA_Graph::add_vertex(int pos,MSA_Vertex mv) {
     this->vertices.change(pos,mv);
+}
+
+void MSA_Graph::find_location(int refID, int ref_start, int end, int& new_start, int& s){
+    int sum_removed = std::accumulate(this->removed.begin(), this->removed.begin()+ref_start, 0);
+    if(!this->removed[ref_start]){
+        new_start = ref_start - sum_removed;
+        return;
+    }
+    else if(sum_removed == this->length){
+        new_start = 0;
+        s = 0;
+        return;
+    }
+    else{
+        int next_pos = ref_start;
+        s=0;
+        while(next_pos < end){
+            next_pos = this->vertices.get(next_pos)->get_next_pos4ref(refID);
+            s++;
+            if(!removed[next_pos]){
+                sum_removed = std::accumulate(this->removed.begin(),this->removed.begin()+next_pos,0);
+                new_start =  next_pos - sum_removed;
+                return;
+            }
+        }
+        new_start = 0;
+        s = 0;
+    }
+}
+
+void MSA_Graph::fit_read(int refID,int ref_start,int end,int& new_start, int& s, std::vector<int>& not_removed, std::vector<int>& added){ // the last four parameters are the return
+    this->find_location(refID,ref_start,end,new_start,s);
+
+    std::vector<int> to_remove;
+    int pos_tracker = 0,next_vID,cur_vID;
+    MSA_Vertex* v,next_v;
+    int start = ref_start;
+    while(true){
+//        if(cur_vID == 10000){
+//            std::cout<<"found"<<std::endl;
+//        }
+        cur_vID = start;
+        v = this->vertices.get(cur_vID);
+        next_vID = v->get_next_pos4ref(refID);
+        if(cur_vID != next_vID){
+            int tmp_pos = pos_tracker;
+            for(int i=cur_vID+1;i<next_vID;i++){
+                if(i>this->farthestEnd){
+                    to_remove.push_back(i);
+                }
+                else{
+                    if(this->removed[i]==0){
+                        not_removed.push_back(i);
+                    }
+                }
+                tmp_pos++;
+            }
+        }
+        if(next_vID>=end){
+            break;
+        }
+        else{
+            start = next_vID;
+        }
+        pos_tracker++;
+        if(this->removed[cur_vID]==1 && next_vID==cur_vID+1){
+            added.push_back(pos_tracker);
+        }
+    }
+    if(to_remove.size()>0){
+        for(auto& vid : to_remove){
+            this->removed[vid]=1;
+        }
+    }
+    this->memo_end = end;
+    this->memo_refID = refID;
+    if(end>this->farthestEnd){
+        farthestEnd = end;
+    }
+}
+
+int MSA_Graph::get_gff_pos(int refID,int pos){
+    int ref_start = get_new_position(refID,pos);
+    int sum_removed = std::accumulate(this->removed.begin(), this->removed.begin()+ref_start, 0);
+    if(removed[ref_start]){
+        std::cerr<<"position has been removed but is still being reported"<<std::endl;
+    }
+    return ref_start-sum_removed;
+}
+
+void MSA_Graph::fit_annotation(std::string in_gff_fname,std::string out_gff_fname){
+    std::ifstream in_gff_fp;
+    in_gff_fp.open(in_gff_fname.c_str(),std::ios::in);
+
+    if(!in_gff_fp.good()){
+        std::cerr<<"@ERROR::::Cannot open GFF to read"<<std::endl;
+        exit(-1);
+    }
+
+    std::ios::sync_with_stdio(false);
+    std::string line;
+    std::stringstream ss("");
+    std::string ref_name,track,feature,start_s,end_s,score,strand,phase,attrs;
+    int start,end;
+
+    std::ofstream out_gff_fp(out_gff_fname.c_str());
+
+    while(std::getline(in_gff_fp,line)) { // iterate over references
+        if(line.front() == '#'){
+            out_gff_fp<<line<<std::endl;
+            continue;
+        }
+        ss.str(line);
+        ss.clear();
+
+        std::getline(ss, ref_name, '\t');
+        int refID = this->index.getID(ref_name);
+        if(refID==-1){
+            std::cerr<<"@ERROR::::GFF Reference sequence not found in the index"<<std::endl;
+            exit(-1);
+        }
+        std::getline(ss, track, '\t');
+        std::getline(ss, feature, '\t');
+        std::getline(ss, start_s, '\t');
+        std::getline(ss, end_s, '\t');
+        std::getline(ss, score, '\t');
+        std::getline(ss, strand, '\t');
+        std::getline(ss, phase, '\t');
+        std::getline(ss, attrs, '\t');
+
+        out_gff_fp<<ref_name<<"\t"
+                  <<track<<"\t"
+                  <<feature<<"\t"
+                  <<this->get_gff_pos(refID,std::atoi(start_s.c_str()))<<"\t"
+                  <<this->get_gff_pos(refID,std::atoi(end_s.c_str()))<<"\t"
+                  <<score<<"\t"
+                  <<strand<<"\t"
+                  <<phase<<"\t"
+                  <<attrs<<std::endl;
+
+    }
+
+    out_gff_fp.close();
+    in_gff_fp.close();
+
+    std::cerr << "@LOG::loaded the annotation"<<std::endl;
 }
