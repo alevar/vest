@@ -758,9 +758,6 @@ void MSA::joinReads(std::vector<bam1_t*>& reads,samFile *outSAM_joined,bam_hdr_t
     new_rec->data = data;
     new_rec->l_data = data_len;
     new_rec->m_data = m_data;
-    print_cigar(new_rec);
-    print_seq(new_rec);
-    print_qual(new_rec);
 
     int ret = sam_write1(outSAM_joined,outSAM_joined_header,new_rec);
     return;
