@@ -62,8 +62,10 @@ private:
     void clean(int first_pos);
     void parse_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr_t* outSAM_header);
     void change_cigar(bam1_t* in_rec,int s);
-    void create_del(bam1_t* in_rec,std::vector<int>& not_removed);
-    void create_ins(bam1_t* in_rec,std::vector<int>& added);
+    void l2range(std::vector<int>& l,std::vector<std::pair<int,int>>& r);
+    void add_cigar(bam1_t *curAl,int num_cigars,int* cigars);
+    void create_del(bam1_t* in_rec,std::vector<std::pair<int,int>>& not_removed);
+    void create_ins(bam1_t* in_rec,std::vector<std::pair<int,int>>& added);
 
     void parse_msa();
     void save_graph_info(std::string out_base);

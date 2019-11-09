@@ -411,6 +411,15 @@ void print_cigar(bam1_t *al){
     std::cout<<std::endl;
 }
 
+void print_raw_cigar(int cigars[MAX_CIGARS],int n_cigar){
+    for (uint8_t c=0;c<n_cigar;++c){
+        int opcode=bam_cigar_op(cigars[c]);
+        int length=bam_cigar_oplen(cigars[c]);
+        std::cout<<length<<bam_cigar_opchr(opcode);
+    }
+    std::cout<<std::endl;
+}
+
 void print_seq(bam1_t *new_rec){
     int32_t qlen = new_rec->core.l_qseq;
     int8_t *buf = NULL;
@@ -602,12 +611,175 @@ void MSA::change_cigar(bam1_t* in_rec,int s){
 
 }
 
-void MSA::create_del(bam1_t* in_rec,std::vector<int>& not_removed){
-
+void MSA::l2range(std::vector<int>& l,std::vector<std::pair<int,int>>& r){
+    r.emplace_back(std::make_pair(l.front(),l.front()));
+    bool new_entry = false;
+    for(int i=0;i<l.size();i++){
+        if(new_entry){
+            r.emplace_back(std::make_pair(l[i],l[i]));
+            continue;
+        }
+        new_entry = false;
+        if(i==l.size()){
+            return;
+        }
+        else{
+            if(l[i+1]-l[i]==1){
+                r.back().second++;
+            }
+            else{
+                new_entry=true;
+            }
+        }
+    }
 }
 
-void MSA::create_ins(bam1_t* in_rec,std::vector<int>& added){
+void MSA::add_cigar(bam1_t *curAl,int num_cigars,int* cigars){
+    int old_num_cigars = curAl->core.n_cigar;
+    int data_len=curAl->l_data+4*(num_cigars-old_num_cigars);
+    int m_data=std::max(data_len,(int)curAl->m_data);
+    kroundup32(m_data);
 
+    auto* data = (uint8_t*)calloc(m_data,1);
+
+    int copy1_len = (uint8_t*)bam_get_cigar(curAl) - curAl->data;
+    memcpy(data, curAl->data, copy1_len);
+
+    int copy2_len = num_cigars * 4;
+    memcpy(data + copy1_len, cigars, copy2_len);
+
+    int copy3_len = curAl->l_data - copy1_len - (old_num_cigars * 4);
+    memcpy(data + copy1_len + copy2_len, bam_get_seq(curAl), copy3_len);
+
+    curAl->core.n_cigar = num_cigars;
+
+    free(curAl->data);
+    curAl->data = data;
+    curAl->l_data = data_len;
+    curAl->m_data = m_data;
+}
+
+// TODO: when filling in the gaps in the consensus what we can do by default is:
+//    check which genome has the highest number of unique mappings and use that
+
+void MSA::create_del(bam1_t* in_rec,std::vector<std::pair<int,int>>& not_removed){
+    // currently we assume that positions in not_removed are sorted (which should hold true, since the alignment is evaluated in order)
+    // however, this may lead to errors
+
+    int cigars[MAX_CIGARS];
+    int num_cigars=0;
+
+    int nr_idx = 0;
+
+//    int cur_ref_pos=in_rec->core.pos; // same as cur_pos but includes the soft clipping bases
+    int cur_read_pos=0;
+    for (uint8_t c=0;c<in_rec->core.n_cigar;++c){
+        uint32_t *cigar_full=bam_get_cigar(in_rec);
+        int opcode=bam_cigar_op(cigar_full[c]);
+        int length=bam_cigar_oplen(cigar_full[c]);
+
+        if(opcode==BAM_CSOFT_CLIP || opcode==BAM_CMATCH || opcode==BAM_CREF_SKIP || opcode==BAM_CDEL){
+                // consumes both reference and query
+                cur_read_pos+=length;
+        }
+        int pre_len=0,post_len=0;
+        bool was_set=false;
+        while(cur_read_pos>=not_removed[nr_idx].first && nr_idx!=not_removed.size()){ // add all the not_removed bases as relevant deletions
+            was_set=true;
+            pre_len = length - (cur_read_pos-not_removed[nr_idx].first);
+            post_len = length - pre_len;
+            cigars[num_cigars]=opcode|(pre_len<<BAM_CIGAR_SHIFT);
+            ++num_cigars;
+
+            int nr_len = (not_removed[nr_idx].second-not_removed[nr_idx].first)+1;
+            cigars[num_cigars]=BAM_CDEL|(nr_len<<BAM_CIGAR_SHIFT);
+            ++num_cigars;
+
+            cur_read_pos+=nr_len;
+
+            nr_idx++;
+        }
+        if(was_set){
+            cigars[num_cigars]=opcode|(post_len<<BAM_CIGAR_SHIFT);
+            ++num_cigars;
+            was_set=false;
+        }
+        else{
+            if(cur_read_pos<not_removed[nr_idx].first){
+                cigars[num_cigars]=opcode|(length<<BAM_CIGAR_SHIFT);
+                ++num_cigars;
+            }
+        }
+    }
+
+    add_cigar(in_rec,num_cigars,cigars);
+//    print_cigar(in_rec);
+
+    return;
+}
+
+void MSA::create_ins(bam1_t* in_rec,std::vector<std::pair<int,int>>& added){
+    int cigars[MAX_CIGARS];
+    int num_cigars=0;
+
+    int nr_idx = 0;
+
+//    int cur_ref_pos=in_rec->core.pos; // same as cur_pos but includes the soft clipping bases
+    int cur_read_pos=0;
+    for (uint8_t c=0;c<in_rec->core.n_cigar;++c){
+        uint32_t *cigar_full=bam_get_cigar(in_rec);
+        int opcode=bam_cigar_op(cigar_full[c]);
+        int length=bam_cigar_oplen(cigar_full[c]);
+
+        if(opcode==BAM_CSOFT_CLIP || opcode==BAM_CMATCH || opcode==BAM_CREF_SKIP || opcode==BAM_CDEL){
+            // consumes both reference and query
+            cur_read_pos+=length;
+        }
+        int pre_len=0,post_len=0,nr_len=0;
+        bool was_set=false;
+        bool ins_created=false;
+        while(cur_read_pos>=added[nr_idx].first && nr_idx!=added.size()){ // add all the not_removed bases as relevant deletions
+            was_set=true;
+            pre_len = length - (cur_read_pos-added[nr_idx].first);
+            post_len = length - pre_len;
+            if(ins_created){
+                post_len-=nr_len;
+                ins_created=false;
+            }
+            cigars[num_cigars]=opcode|(pre_len<<BAM_CIGAR_SHIFT);
+            ++num_cigars;
+
+            nr_len = (added[nr_idx].second-added[nr_idx].first)+1;
+            cigars[num_cigars]=BAM_CINS|(nr_len<<BAM_CIGAR_SHIFT);
+            ++num_cigars;
+            ins_created=true;
+
+            cur_read_pos+=nr_len;
+
+            nr_idx++;
+        }
+        if(was_set){
+            if(ins_created){
+                post_len-=nr_len;
+                ins_created=false;
+            }
+            cigars[num_cigars]=opcode|(post_len<<BAM_CIGAR_SHIFT);
+            ++num_cigars;
+            was_set=false;
+        }
+        else{
+            if(cur_read_pos<added[nr_idx].first){
+                cigars[num_cigars]=opcode|(length<<BAM_CIGAR_SHIFT);
+                ++num_cigars;
+            }
+        }
+    }
+
+    add_cigar(in_rec,num_cigars,cigars);
+    std::cout<<bam_get_qname(in_rec)<<std::endl;
+    print_cigar(in_rec);
+
+    return;
 }
 
 // parse fitted read and adjust the graph
@@ -620,25 +792,33 @@ void MSA::parse_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr
     int in_rec_ref_start = in_rec->core.pos;
 
     int new_start,s;
-    std::vector<int> not_removed,added;
+    std::vector<int> not_removed_tmp,added_tmp;
+    std::vector<std::pair<int,int>> not_removed,added;
 
-    this->graph.fit_read(tag_refID,in_rec_ref_start,tag_ref_end,new_start,s,not_removed,added);
+    if(std::strcmp(bam_get_qname(in_rec),"AF049337_118_268_0:0:1_0:0:1_8e4/1")==0){
+        std::cout<<"found"<<std::endl;
+    }
+
+    this->graph.fit_read(tag_refID,in_rec_ref_start,tag_ref_end,new_start,s,not_removed_tmp,added_tmp);
     in_rec_ref_start = new_start;
     if(in_rec_ref_start != NULL){
         in_rec->core.pos = in_rec_ref_start;
         if(s>0){
-            std::cout<<"changing cigar"<<std::endl; // TODO: why is this needed?
+//            std::cout<<"changing cigar"<<std::endl; // this case happens when the starting positions have been altered
             change_cigar(in_rec,s);
         }
-        if(not_removed.size()>0){
-            std::cout<<"creating deletion"<<std::endl;
+        if(not_removed_tmp.size()>0){
+//            std::cout<<"creating deletion"<<std::endl;
             // instead of introducing a deletion into the actual cigar string - perhaps would make sense to simply split the read and record the type for later
+            // how can we do this without having to repeat the same process for the reads that fall in here
+            l2range(not_removed_tmp,not_removed);
             create_del(in_rec,not_removed);
         }
-        if(added.size()>0){
-            std::cout<<"creating insertion"<<std::endl;
+        if(added_tmp.size()>0){
+//            std::cout<<"creating insertion"<<std::endl;
             // instead of introducing a deletion into the actual cigar string - perhaps would make sense to simply split the read and record the type for later
-            create_ins(in_rec,not_removed);
+            l2range(added_tmp,added);
+            create_ins(in_rec,added);
         }
         int ret_val = sam_write1(outSAM, outSAM_header, in_rec);
     }

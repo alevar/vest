@@ -176,7 +176,6 @@ void MSA_Graph::find_location(int refID, int ref_start, int end, int& new_start,
 
 void MSA_Graph::fit_read(int refID,int ref_start,int end,int& new_start, int& s, std::vector<int>& not_removed, std::vector<int>& added){ // the last four parameters are the return
     this->find_location(refID,ref_start,end,new_start,s);
-
     std::vector<int> to_remove;
     int pos_tracker = 0,next_vID,cur_vID;
     MSA_Vertex* v,next_v;
@@ -196,7 +195,7 @@ void MSA_Graph::fit_read(int refID,int ref_start,int end,int& new_start, int& s,
                 }
                 else{
                     if(this->removed[i]==0){
-                        not_removed.push_back(i);
+                        not_removed.push_back(tmp_pos);
                     }
                 }
                 tmp_pos++;
