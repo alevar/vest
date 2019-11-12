@@ -771,7 +771,6 @@ void MSA::create_del(bam1_t* in_rec,std::vector<std::pair<int,int>>& not_removed
 
     return;
 }
-
 void MSA::create_ins(bam1_t* in_rec,std::vector<std::pair<int,int>>& added){
     int cigars[MAX_CIGARS];
     int num_cigars=0;
