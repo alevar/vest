@@ -40,8 +40,13 @@ public:
     void realign(std::string in_sam,std::string out_sam);
 
     void fit_annotation(std::string in_gff, std::string out_gff);
+    void fit_bed(std::string in_bed,std::string out_bed);
+
+    void set_gapfillname(std::string ref_name);
 
 private:
+    int gap_fillID = -1;
+
     std::string msa_fname;
     std::string msa_header_fname;
     FILE* msa_fhandle;
@@ -56,14 +61,16 @@ private:
     bool isMod(bam1_t* in_rec);
     void split_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr_t* outSAM_header);
     void write_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr_t* outSAM_header);
-    void add_orig_ref_tags(bam1_t* in_rec,int ref);
+    void add_orig_ref_tags(bam1_t* in_rec,int ref,int new_end);
     void add_split_tags(bam1_t* in_rec,int cur_slice,int opcode);
 
-    void clean(int first_pos);
+    void clean();
     void parse_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr_t* outSAM_header);
     void change_cigar(bam1_t* in_rec,int s);
-    void create_del(bam1_t* in_rec,std::vector<int>& not_removed);
-    void create_ins(bam1_t* in_rec,std::vector<int>& added);
+    void l2range(std::vector<int>& l,std::vector<std::pair<int,int>>& r);
+    void add_cigar(bam1_t *curAl,int num_cigars,int* cigars);
+    void create_del(bam1_t* in_rec,std::vector<std::pair<int,int>>& not_removed);
+    void create_ins(bam1_t* in_rec,std::vector<std::pair<int,int>>& added);
 
     void parse_msa();
     void save_graph_info(std::string out_base);
@@ -76,6 +83,8 @@ private:
     void _load_graph(std::ifstream& stream);
 
     bool change_data(bam1_t *in_rec,int num_cigars,int* cigars,int cur_start,int cur_len,bool shift);
+
+    void joinReads(std::vector<bam1_t*>& reads,samFile *outSAM_joined,bam_hdr_t *outSAM_joined_header);
 
 
     // IUPAC definitions

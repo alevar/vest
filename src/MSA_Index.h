@@ -51,7 +51,7 @@ public:
         if(this->ri_it.first == this->ref_to_id.end()){
             return -1;
         }
-        return ref_to_id[ref];;
+        return ref_to_id[ref];
     }
     std::string getRef(uint16_t id){
         return id_to_ref[id];
@@ -86,6 +86,13 @@ public:
             }
             out_fp<<std::endl;
         }
+    }
+
+    int get_first_pos(int refID){
+        return this->pos_idx[refID].front();
+    }
+    int get_last_pos(int refID){
+        return this->pos_idx[refID].back();
     }
 
 private:

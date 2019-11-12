@@ -11,6 +11,7 @@
 #include <unordered_map>
 #include <fstream>
 #include <set>
+#include <map>
 
 class MSA_Vertex {
 public:
@@ -98,6 +99,39 @@ public:
         }
     }
 
+    // TODO: add information about supporting references directly to the vertices.
+    //    As long as we still iterate at some point over all vertices that belong to a given read - we can populate each required vertex, thus making the final graph a lot easier to interpret due to fewer ambiguous bases
+
+    void get_supported_nt_string(std::string& res,std::map<int,int>& rcs){ // uses the refid_counts in order to select the most abundant bases only
+        if(rcs.empty()){
+            get_nt_string(res);
+        }
+        else {
+            // get the most abundant references first
+            int max_abund = 0;
+            for (auto &rc : rcs) {
+                if (rc.second > max_abund) {
+                    max_abund = rc.second;
+                }
+            }
+            std::set<char> res_nts;
+            std::pair<std::string, uint32_t> ref_base;
+            for (auto &rc : rcs) {
+                if (rc.second == max_abund) {
+                    ref_base = this->contents[rc.first];
+                    if (!ref_base.first.empty()) {
+                        for (auto &n : ref_base.first) {
+                            res_nts.insert(n);
+                        }
+                    }
+                }
+            }
+            for (auto &v : res_nts) {
+                res += v;
+            }
+        }
+    }
+
     void get_next_vts(std::vector<int>& next_vts){
         std::set<int> res_vts;
         for(auto& v : this->contents){
@@ -121,7 +155,7 @@ private:
     // G/g - 2
     // T/t - 3
     // other codes may be supported from here as well
-    uint8_t nt_table[256]={99, 99, 99, 99, 99, 99, 99, 99,//0
+    uint8_t nt_table[256]= {99, 99, 99, 99, 99, 99, 99, 99,//0
                             99, 99, 99, 99, 99, 99, 99, 99,//8
                             99, 99, 99, 99, 99, 99, 99, 99,//16
                             99, 99, 99, 99, 99, 99, 99, 99,//24

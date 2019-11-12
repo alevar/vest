@@ -24,7 +24,22 @@ add_executable(vest
         src/MSA_Vertex.h
         src/MSA_Edge.h
         src/FastaTools.cpp
-        src/FastaTools.h)
+        src/FastaTools.h
+        src/codons.h
+        src/codons.cpp
+        src/GBase.h
+        src/GBase.cpp
+        src/gdna.h
+        src/gdna.cpp
+        src/GFaSeqGet.h
+        src/GFaSeqGet.cpp
+        src/gff.h
+        src/gff.cpp
+        src/GHash.hh
+        src/GList.hh
+        src/GVec.hh
+        src/tokenize.h
+        src/tokenize.cpp)
 
 add_dependencies(vest htslib zlib)
 target_link_libraries(vest ${htslib_LIB} ${zlib_LIB} -lbz2 -llzma -pthread -lcrypto -lcurl)

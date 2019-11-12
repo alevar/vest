@@ -76,6 +76,13 @@ int MSA_Graph::get_new_position(int refID, int pos) {
     return this->index.getNewPos(refID,pos);
 }
 
+void MSA_Graph::add2refcount(int pos,int refID){
+    this->rcit = this->refids_counts[pos].insert(std::make_pair(refID,1));
+    if(!this->rcit.second){
+        this->rcit.first++;
+    }
+}
+
 void MSA_Graph::save_index(std::ofstream& out_fp) {
     this->index.save(out_fp);
 }
@@ -120,7 +127,8 @@ void MSA_Graph::save_merged_fasta(std::string& out_fp){
         if(this->removed[i]==0){
             std::string nt_str = "";
             mv = this->vertices.get(i);
-            mv->get_nt_string(nt_str);
+//            mv->get_nt_string(nt_str);
+            mv->get_supported_nt_string(nt_str,this->refids_counts[i]);
             iupac_nt = this->IUPAC[nt_str];
             merged_fp<<iupac_nt;
             nt_str.clear();
@@ -148,13 +156,13 @@ void MSA_Graph::add_vertex(int pos,MSA_Vertex mv) {
 
 void MSA_Graph::find_location(int refID, int ref_start, int end, int& new_start, int& s){
     int sum_removed = std::accumulate(this->removed.begin(), this->removed.begin()+ref_start, 0);
-    if(!removed[ref_start]){
+    if(!this->removed[ref_start]){
         new_start = ref_start - sum_removed;
         return;
     }
     else if(sum_removed == this->length){
-        new_start = NULL;
-        s = NULL;
+        new_start = 0;
+        s = 0;
         return;
     }
     else{
@@ -169,19 +177,21 @@ void MSA_Graph::find_location(int refID, int ref_start, int end, int& new_start,
                 return;
             }
         }
-        new_start = NULL;
-        s = NULL;
+        new_start = 0;
+        s = 0;
     }
 }
 
 void MSA_Graph::fit_read(int refID,int ref_start,int end,int& new_start, int& s, std::vector<int>& not_removed, std::vector<int>& added){ // the last four parameters are the return
     this->find_location(refID,ref_start,end,new_start,s);
-
     std::vector<int> to_remove;
     int pos_tracker = 0,next_vID,cur_vID;
     MSA_Vertex* v,next_v;
     int start = ref_start;
     while(true){
+//        if(cur_vID == 10000){
+//            std::cout<<"found"<<std::endl;
+//        }
         cur_vID = start;
         v = this->vertices.get(cur_vID);
         next_vID = v->get_next_pos4ref(refID);
@@ -193,7 +203,7 @@ void MSA_Graph::fit_read(int refID,int ref_start,int end,int& new_start, int& s,
                 }
                 else{
                     if(this->removed[i]==0){
-                        not_removed.push_back(i);
+                        not_removed.push_back(tmp_pos);
                     }
                 }
                 tmp_pos++;
@@ -231,6 +241,54 @@ int MSA_Graph::get_gff_pos(int refID,int pos){
     return ref_start-sum_removed;
 }
 
+int MSA_Graph::get_first_pos(int refID){
+    return this->index.get_first_pos(refID);
+}
+
+int MSA_Graph::get_last_pos(int refID){
+    return this->index.get_last_pos(refID);
+}
+
+void MSA_Graph::set_removed(int start, int end){
+    for(int i=start;i<end;i++){
+        this->removed[i]=1;
+    }
+}
+
+void MSA_Graph::get_most_abundant_refID(int pos,int&refID){
+    int count=0;
+    int refid=0;
+    for(auto& rid : this->refids_counts[pos]){
+        if(count<rid.second){
+            count=rid.second;
+            refID=rid.first;
+        }
+    }
+    return;
+}
+
+void MSA_Graph::get_first_mapped_pos(int& pos,int& refID){
+    for(int i=0;i<this->refids_counts.size();i++){
+        if(!this->refids_counts[i].empty()){
+            // get the most abundant reference at the position. if two equally good exist - return the first one
+            pos = i;
+            get_most_abundant_refID(pos,refID);
+            return;
+        }
+    }
+}
+
+void MSA_Graph::get_last_mapped_pos(int& pos,int& refID){
+    for(int i=refids_counts.size()-1;i>0;i--){
+        if(!this->refids_counts[i].empty()){
+            // get the most abundant reference at the position. if two equally good exist - return the first one
+            pos = i;
+            get_most_abundant_refID(pos,refID);
+            return;
+        }
+    }
+}
+
 void MSA_Graph::fit_annotation(std::string in_gff_fname,std::string out_gff_fname){
     std::ifstream in_gff_fp;
     in_gff_fp.open(in_gff_fname.c_str(),std::ios::in);
@@ -262,7 +320,6 @@ void MSA_Graph::fit_annotation(std::string in_gff_fname,std::string out_gff_fnam
             std::cerr<<"@ERROR::::GFF Reference sequence not found in the index"<<std::endl;
             exit(-1);
         }
-        std::cout<<ref_name<<std::endl;
         std::getline(ss, track, '\t');
         std::getline(ss, feature, '\t');
         std::getline(ss, start_s, '\t');
@@ -288,4 +345,13 @@ void MSA_Graph::fit_annotation(std::string in_gff_fname,std::string out_gff_fnam
     in_gff_fp.close();
 
     std::cerr << "@LOG::loaded the annotation"<<std::endl;
+}
+
+void MSA_Graph::init_refcouts(){
+    if(this->length==0){
+        std::cerr<<"empty graph"<<std::endl;
+        std::exit(-1);
+    }
+    this->refids_counts = std::vector<std::map<int,int>>(this->length,std::map<int,int>{});
+    std::cout<<refids_counts.size()<<"\t"<<this->length<<std::endl;
 }

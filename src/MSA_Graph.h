@@ -12,6 +12,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <map>
 
 #include "MSA_Vertex.h"
 #include "MSA_Edge.h"
@@ -56,6 +57,15 @@ public:
 
     int get_gff_pos(int refID,int pos);
 
+    int get_first_pos(int refID); // retrieves the first position in the graph where the reference begins
+    int get_last_pos(int refID);
+    void set_removed(int start, int end);
+    void get_first_mapped_pos(int& pos,int& refID);
+    void get_last_mapped_pos(int& pos,int&refID);
+    void get_most_abundant_refID(int pos,int&refID);
+    void add2refcount(int pos,int refID);
+    void init_refcouts();
+
 private:
     MSA_Index index; // index which holds ref IDs
     int length = 0;
@@ -64,7 +74,10 @@ private:
     MSA_List<MSA_Vertex> vertices;
 
     // related to updating the vector of removed vertices
-    std::vector<int> removed; // TODO: simple vector for now - needs to be replaced by a more efficient solution
+    std::vector<int> removed; // TODO: simple vector for now - needs to be replaced by a more robust solution
+    std::vector<std::map<int,int>> refids_counts; // for each position within the graph stores the set of references at that position and the number of reads that were mapped to the graph through that reference
+    std::pair<std::map<int,int>::iterator,bool> rcit; // iterator for the refids_counts
+
     int farthestEnd=0; // the value is set to the last position that was processed so far.
                         // Since reads are sorted with respect to the MSA, any nades prior to this value
                         // are not to be removed. Instead if a read demands a removal - the cigar of the read

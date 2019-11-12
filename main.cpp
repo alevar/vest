@@ -15,8 +15,8 @@ int vest_vcf(int argc,char* argv[]){
         OUT_VCF= 'o'};
 
     ArgParse args_vcf("vest_inspect");
-    args_vcf.add_string(Opt_VCF::IN_SAM,"input","","path to the vest-realigned SAM or BAM file");
-    args_vcf.add_string(Opt_VCF::OUT_VCF,"output","","path to the output VCF file");
+    args_vcf.add_string(Opt_VCF::IN_SAM,"input","","path to the vest-realigned SAM or BAM file",true);
+    args_vcf.add_string(Opt_VCF::OUT_VCF,"output","","path to the output VCF file",false);
 
     args_vcf.parse_args(argc,argv);
 
@@ -29,8 +29,8 @@ int vest_inspect(int argc,char* argv[]){
                       OUT_MSA= 'm'};
 
     ArgParse args_inspect("vest_inspect");
-    args_inspect.add_string(Opt_Inspect::MSA_DB,"db","","path to the vest database");
-    args_inspect.add_string(Opt_Inspect::OUT_MSA,"msa","","output file for the MSA encoded in the database");
+    args_inspect.add_string(Opt_Inspect::MSA_DB,"db","","path to the vest database",true);
+    args_inspect.add_string(Opt_Inspect::OUT_MSA,"msa","","output file for the MSA encoded in the database",false);
 
     args_inspect.parse_args(argc,argv);
 
@@ -42,13 +42,17 @@ int vest_realign(int argc,char* argv[]){
     enum Opt_Realign {INPUT_FP= 'i',
                     OUTPUT= 'o',
                     MUS_DB = 'x',
-                    GFF = 'a'};
+                    GFF = 'a',
+                    BED = 'b',
+                    GAPFILLNAME = 'n'};
 
     ArgParse args_realign("vest_realign");
-    args_realign.add_string(Opt_Realign::INPUT_FP,"input","","path to the input alignment");
-    args_realign.add_string(Opt_Realign::OUTPUT,"output","","base name for the output files");
-    args_realign.add_string(Opt_Realign::MUS_DB,"db","","database build with vest build from the ultiple sequence alignment");
-    args_realign.add_string(Opt_Realign::GFF,"ann","","annotation of genomic features with respect to one of the genomes");
+    args_realign.add_string(Opt_Realign::INPUT_FP,"input","","path to the input alignment",true);
+    args_realign.add_string(Opt_Realign::OUTPUT,"output","","base name for the output files",true);
+    args_realign.add_string(Opt_Realign::MUS_DB,"db","","database build with vest build from the ultiple sequence alignment",true);
+    args_realign.add_string(Opt_Realign::GFF,"ann","","annotation of genomic features with respect to one of the genomes",false);
+    args_realign.add_string(Opt_Realign::BED,"bed","","bed-formatted interval to be converted to the reference sequence",false);
+    args_realign.add_string(Opt_Realign::GAPFILLNAME,"gname","","Name of one of the sequences in the pan genome to be used when resolving a gap in the assembly. If not provided, the default behavior is to use the sequence supported by the reads on both sides of the junction",false);
 
     args_realign.parse_args(argc,argv);
 
@@ -66,9 +70,28 @@ int vest_realign(int argc,char* argv[]){
     MSA msa;
     msa.load_graph(args_realign.get_string(MUS_DB),cl);
 
+    if(args_realign.is_set(Opt_Realign::GAPFILLNAME)){
+        msa.set_gapfillname(args_realign.get_string(Opt_Realign::GAPFILLNAME));
+    }
+
     msa.realign(args_realign.get_string(INPUT_FP),args_realign.get_string(OUTPUT));
 
+    if(args_realign.is_set(Opt_Realign::GFF)){
+        std::string out_gff_fname = args_realign.get_string(Opt_Realign::OUTPUT);
+        out_gff_fname.append(".gff");
+        msa.fit_annotation(args_realign.get_string(Opt_Realign::GFF),out_gff_fname);
+    }
+
+    if(args_realign.is_set(Opt_Realign::BED)){
+        std::string out_bed_fname = args_realign.get_string(Opt_Realign::OUTPUT);
+        out_bed_fname.append(".bed");
+        msa.fit_bed(args_realign.get_string(Opt_Realign::BED),out_bed_fname);
+    }
+
     return 0;
+
+    // TODO: need to write a script which can extract variants from the assembly/alignment
+    // TODO: another use case for this would be to partition viruses based on error profiles into single cells/origins in bulk experiments (similar to phasing)
 }
 
 // builds the database
@@ -77,8 +100,8 @@ int vest_build(int argc,char* argv[]){
                     MUS_DB   = 'o'};
 
     ArgParse args_build("vest_build");
-    args_build.add_string(Opt_Build::MUS_FP,"mus","","");
-    args_build.add_string(Opt_Build::MUS_DB,"out","","");
+    args_build.add_string(Opt_Build::MUS_FP,"mus","","path to the multiple sequence alignment",true);
+    args_build.add_string(Opt_Build::MUS_DB,"out","","path and basename for the output database",true);
 
     args_build.parse_args(argc,argv);
 
