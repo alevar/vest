@@ -84,6 +84,8 @@ private:
 
     bool change_data(bam1_t *in_rec,int num_cigars,int* cigars,int cur_start,int cur_len,bool shift);
 
+    void join_cigars_old(std::vector<bam1_t*>& reads,uint8_t *cigars,int& new_n_cigar_bytes);
+    void join_cigars(std::vector<bam1_t*>& reads,uint8_t *cigars,int& new_n_cigar_bytes);
     void joinReads(std::vector<bam1_t*>& reads,samFile *outSAM_joined,bam_hdr_t *outSAM_joined_header);
 
 

@@ -117,6 +117,12 @@ void MSA_Graph::save_graph2dot(std::ofstream &out_fp){
 }
 
 void MSA_Graph::save_merged_fasta(std::string& out_fp){
+    for(int i=6600;i<6900;i++){
+        if(this->removed[i]){
+            std::cout<<"removed: "<<i<<std::endl;
+        }
+    }
+
     std::ofstream merged_fp(out_fp.c_str());
     merged_fp<<">MSA"<<std::endl;
 
@@ -127,8 +133,8 @@ void MSA_Graph::save_merged_fasta(std::string& out_fp){
         if(this->removed[i]==0){
             std::string nt_str = "";
             mv = this->vertices.get(i);
-//            mv->get_nt_string(nt_str);
-            mv->get_supported_nt_string(nt_str,this->refids_counts[i]);
+            mv->get_nt_string(nt_str);
+//            mv->get_supported_nt_string(nt_str,this->refids_counts[i]);
             iupac_nt = this->IUPAC[nt_str];
             merged_fp<<iupac_nt;
             nt_str.clear();
@@ -183,15 +189,19 @@ void MSA_Graph::find_location(int refID, int ref_start, int end, int& new_start,
 }
 
 void MSA_Graph::fit_read(int refID,int ref_start,int end,int& new_start, int& s, std::vector<int>& not_removed, std::vector<int>& added){ // the last four parameters are the return
+    s=0;
     this->find_location(refID,ref_start,end,new_start,s);
+    if(s>0){
+        for(int i=0;i<s;i++){
+            added.emplace_back(i);
+        }
+    }
     std::vector<int> to_remove;
     int pos_tracker = 0,next_vID,cur_vID;
     MSA_Vertex* v,next_v;
     int start = ref_start;
+
     while(true){
-//        if(cur_vID == 10000){
-//            std::cout<<"found"<<std::endl;
-//        }
         cur_vID = start;
         v = this->vertices.get(cur_vID);
         next_vID = v->get_next_pos4ref(refID);
@@ -217,11 +227,16 @@ void MSA_Graph::fit_read(int refID,int ref_start,int end,int& new_start, int& s,
         }
         pos_tracker++;
         if(this->removed[cur_vID]==1 && next_vID==cur_vID+1){
-            added.push_back(pos_tracker);
+            if(pos_tracker-s>=0){
+                added.push_back(pos_tracker-s);
+            }
         }
     }
     if(to_remove.size()>0){
         for(auto& vid : to_remove){
+            if(vid==6823){
+                std::cout<<"found"<<std::endl;
+            }
             this->removed[vid]=1;
         }
     }
@@ -230,6 +245,15 @@ void MSA_Graph::fit_read(int refID,int ref_start,int end,int& new_start, int& s,
     if(end>this->farthestEnd){
         farthestEnd = end;
     }
+//    std::vector<int> to_remove_idx;
+//    if(s>0 && !added.empty()){
+//        for(int i=0;i<added.size();i++){
+//            if(added[i]-s<0){
+//
+//            }
+//            added[i]=added[i]-s;
+//        }
+//    }
 }
 
 int MSA_Graph::get_gff_pos(int refID,int pos){

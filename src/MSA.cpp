@@ -5,6 +5,53 @@
 #include "MSA.h"
 #include "FastaTools.h"
 
+void print_cigar(bam1_t *al){
+    for (uint8_t c=0;c<al->core.n_cigar;++c){
+        uint32_t *cigar_full=bam_get_cigar(al);
+        int opcode=bam_cigar_op(cigar_full[c]);
+        int length=bam_cigar_oplen(cigar_full[c]);
+        std::cout<<length<<bam_cigar_opchr(opcode);
+    }
+    std::cout<<std::endl;
+}
+
+void print_raw_cigar(int cigars[MAX_CIGARS],int n_cigar){
+    for (uint8_t c=0;c<n_cigar;++c){
+        int opcode=bam_cigar_op(cigars[c]);
+        int length=bam_cigar_oplen(cigars[c]);
+        std::cout<<length<<bam_cigar_opchr(opcode);
+    }
+    std::cout<<std::endl;
+}
+
+void print_raw_cigar_uint(uint32_t cigars[MAX_CIGARS],int n_cigar){
+    for (uint8_t c=0;c<n_cigar;++c){
+        int opcode=bam_cigar_op(cigars[c]);
+        int length=bam_cigar_oplen(cigars[c]);
+        std::cout<<length<<bam_cigar_opchr(opcode);
+    }
+    std::cout<<std::endl;
+}
+
+void print_seq(bam1_t *new_rec){
+    int32_t qlen = new_rec->core.l_qseq;
+    int8_t *buf = NULL;
+    buf = static_cast<int8_t *>(realloc(buf, qlen+1));
+    buf[qlen] = '\0';
+    uint8_t* seq = bam_get_seq(new_rec);
+    for (int i = 0; i < qlen; ++i)
+        buf[i] = bam_seqi(seq, i);
+    for (int i = 0; i < qlen; ++i) {
+        buf[i] = seq_nt16_str[buf[i]];
+    }
+    std::string str_seq((char*)(char*)buf);
+    std::cout<<str_seq<<std::endl;
+}
+
+void print_qual(bam1_t *new_rec){
+    std::cout<<bam_get_qual(new_rec)<<std::endl;
+}
+
 MSA::MSA(std::string msa_fname) {
     this->msa_fname = msa_fname;
     this->parse_msa();
@@ -403,44 +450,6 @@ void MSA::write_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr
     int ret_val = sam_write1(outSAM, outSAM_header, in_rec);
 }
 
-void print_cigar(bam1_t *al){
-    for (uint8_t c=0;c<al->core.n_cigar;++c){
-        uint32_t *cigar_full=bam_get_cigar(al);
-        int opcode=bam_cigar_op(cigar_full[c]);
-        int length=bam_cigar_oplen(cigar_full[c]);
-        std::cout<<length<<bam_cigar_opchr(opcode);
-    }
-    std::cout<<std::endl;
-}
-
-void print_raw_cigar(int cigars[MAX_CIGARS],int n_cigar){
-    for (uint8_t c=0;c<n_cigar;++c){
-        int opcode=bam_cigar_op(cigars[c]);
-        int length=bam_cigar_oplen(cigars[c]);
-        std::cout<<length<<bam_cigar_opchr(opcode);
-    }
-    std::cout<<std::endl;
-}
-
-void print_seq(bam1_t *new_rec){
-    int32_t qlen = new_rec->core.l_qseq;
-    int8_t *buf = NULL;
-    buf = static_cast<int8_t *>(realloc(buf, qlen+1));
-    buf[qlen] = '\0';
-    uint8_t* seq = bam_get_seq(new_rec);
-    for (int i = 0; i < qlen; ++i)
-        buf[i] = bam_seqi(seq, i);
-    for (int i = 0; i < qlen; ++i) {
-        buf[i] = seq_nt16_str[buf[i]];
-    }
-    std::string str_seq((char*)(char*)buf);
-    std::cout<<str_seq<<std::endl;
-}
-
-void print_qual(bam1_t *new_rec){
-    std::cout<<bam_get_qual(new_rec)<<std::endl;
-}
-
 bool MSA::change_data(bam1_t *in_rec,int num_cigars,int* cigars,int cur_start,int cur_len,bool shift){
     int old_num_cigars = in_rec->core.n_cigar;
 
@@ -453,12 +462,12 @@ bool MSA::change_data(bam1_t *in_rec,int num_cigars,int* cigars,int cur_start,in
     if(shift){
         num_bytes++;
     }
-    if(cur_len%2==0){
-        num_bytes++;
-    }
+//    if(cur_len%2==1){
+//        num_bytes++;
+//    }
 
     int res_num_bytes = cur_len/2;
-    if(cur_len%2==1){ // because there is a shift at both ends - the results will contain one byte less
+    if(cur_len%2==1){
         res_num_bytes++;
     }
 
@@ -510,6 +519,11 @@ bool MSA::change_data(bam1_t *in_rec,int num_cigars,int* cigars,int cur_start,in
     in_rec->data = data;
     in_rec->l_data = data_len;
     in_rec->m_data = m_data;
+    in_rec->core.l_qseq = cur_len;
+
+//    std::cout<<bam_get_qname(in_rec)<<std::endl;
+//    print_cigar(in_rec);
+//    print_seq(in_rec);
 
     return shift^((cur_len%2)==1);
 }
@@ -536,11 +550,15 @@ void MSA::add_split_tags(bam1_t* in_rec,int cur_slice,int opcode){
 
 // split read based on the cigar string (Deletion/Insertion/SpliceSite)
 void MSA::split_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr_t* outSAM_header){
+//    if(std::strcmp(bam_get_qname(in_rec),"KF234628_650_800_0:3:0_0:1:0_7fa/1")==0){
+//        std::cout<<"found"<<std::endl;
+//    }
     int cigars[MAX_CIGARS];
     int cur_total_pos = in_rec->core.pos; // same as cur_pos but includes the soft clipping bases
     int cur_start=in_rec->core.pos;
     int cur_local_start = 0;
     int cur_len = 0;
+    int cur_ref_len=0;
     int num_cigars = 0;
 
     bam1_t* new_rec = bam_init1();
@@ -564,11 +582,16 @@ void MSA::split_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr
             shift = change_data(new_rec,num_cigars,cigars,cur_local_start,cur_len,shift);
             new_rec->core.pos = cur_start;
             new_rec->core.l_qseq = cur_len;
-            new_end = this->graph.get_new_position(refID,new_rec->core.pos+new_rec->core.l_qseq);
+            new_end = this->graph.get_new_position(refID,bam_endpos(new_rec));
             new_start = this->graph.get_new_position(refID,new_rec->core.pos);
+            if(std::strcmp(bam_get_qname(in_rec),"KF234628_279_429_0:0:0_0:0:0_ae9/1")==0){
+                std::cout<<"start: "<<new_rec->core.pos<<std::endl;
+            }
             add_orig_ref_tags(new_rec,refID,new_end); // TODO: need new_end information which will only be available after parsing the whole read - as such need to write at the end of the full evaluation
             add_split_tags(new_rec,cur_slice,opcode);
-            int ret_val = sam_write1(outSAM, outSAM_header, in_rec);
+            new_rec->core.pos = new_start;
+            new_rec->core.tid = 0;
+            int ret_val = sam_write1(outSAM, outSAM_header, new_rec);
             cur_slice++;
 
             new_rec = bam_dup1(in_rec);
@@ -576,11 +599,13 @@ void MSA::split_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr
             cur_start+=cur_len;
             cur_local_start += cur_len;
             cur_len = 0;
+            cur_ref_len=0;
             if(opcode==BAM_CINS){
                 cur_len+=length;
             }
             else{
                 cur_start+=length;
+                cur_ref_len+=length;
             }
             cigars[num_cigars]=opcode|(length<<BAM_CIGAR_SHIFT);
             ++num_cigars;
@@ -589,16 +614,24 @@ void MSA::split_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr
             cigars[num_cigars]=opcode|(length<<BAM_CIGAR_SHIFT);
             ++num_cigars;
             cur_len+=length;
+            if(opcode!=BAM_CSOFT_CLIP){
+                cur_ref_len+=length;
+            }
         }
     }
     shift = change_data(new_rec,num_cigars,cigars,cur_local_start,cur_len,shift);
     new_rec->core.pos = cur_start;
     new_rec->core.l_qseq = cur_len;
-    new_end = this->graph.get_new_position(refID,new_rec->core.pos+new_rec->core.l_qseq);
+    new_end = this->graph.get_new_position(refID,bam_endpos(new_rec));
     new_start = this->graph.get_new_position(refID,new_rec->core.pos);
     add_orig_ref_tags(new_rec,refID,new_end);
+    new_rec->core.pos = new_start;
+    new_rec->core.tid = 0;
     add_split_tags(new_rec,cur_slice,0); // 0 opcode here means that this is the last segment in the read
-    int ret_val = sam_write1(outSAM, outSAM_header, in_rec);
+//    std::cout<<bam_get_qname(in_rec)<<std::endl;
+//    print_cigar(in_rec);
+//    print_seq(in_rec);
+    int ret_val = sam_write1(outSAM, outSAM_header, new_rec);
 }
 
 // clean the graph based on the specified position
@@ -680,6 +713,9 @@ void MSA::l2range(std::vector<int>& l,std::vector<std::pair<int,int>>& r){
         else{
             if(l[i+1]-l[i]==1){
                 r.back().second++;
+            }
+            else if(l[i+1]-l[i]<=0){
+                continue;
             }
             else{
                 new_entry=true;
@@ -771,6 +807,7 @@ void MSA::create_del(bam1_t* in_rec,std::vector<std::pair<int,int>>& not_removed
 
     return;
 }
+
 void MSA::create_ins(bam1_t* in_rec,std::vector<std::pair<int,int>>& added){
     int cigars[MAX_CIGARS];
     int num_cigars=0;
@@ -785,15 +822,17 @@ void MSA::create_ins(bam1_t* in_rec,std::vector<std::pair<int,int>>& added){
         int opcode=bam_cigar_op(cigar_full[c]);
         int length=bam_cigar_oplen(cigar_full[c]);
 
-        if(opcode==BAM_CSOFT_CLIP || opcode==BAM_CMATCH || opcode==BAM_CREF_SKIP || opcode==BAM_CINS){ // TODO: shouldn't this be an insertion and not a deletion???
+        if(opcode==BAM_CSOFT_CLIP || opcode==BAM_CMATCH || opcode==BAM_CREF_SKIP || opcode==BAM_CINS){
             // consumes both reference and query
             cur_read_pos+=length;
         }
         int pre_len=0,post_len=length,nr_len=0,cum_pre_len=0;
         bool was_set=false;
         bool ins_created=false;
+        bool skip_post=false;
         while(cur_read_pos>=added[nr_idx].first && nr_idx!=added.size()){ // add all the not_removed bases as relevant deletions
             was_set=true;
+            skip_post=false;
             pre_len = length - ((cur_read_pos-added[nr_idx].first)+cum_pre_len);
             cum_pre_len+=pre_len;
             if(ins_created){
@@ -805,6 +844,11 @@ void MSA::create_ins(bam1_t* in_rec,std::vector<std::pair<int,int>>& added){
 
             nr_len = (added[nr_idx].second-added[nr_idx].first)+1;
             cum_pre_len+=nr_len;
+            // since insertions advance position on the read we need to make sure the modification will not step over the bounds of the read and adjust accordingly
+            if(pre_len+nr_len>=length){
+                nr_len = nr_len - ((pre_len+nr_len)-length);
+                skip_post = true;
+            }
             cigars[num_cigars]=BAM_CINS|(nr_len<<BAM_CIGAR_SHIFT);
             ++num_cigars;
             ins_created=true;
@@ -813,7 +857,7 @@ void MSA::create_ins(bam1_t* in_rec,std::vector<std::pair<int,int>>& added){
 
             nr_idx++;
         }
-        if(was_set){
+        if(was_set && !skip_post){
             if(ins_created){
                 post_len-=nr_len;
                 ins_created=false;
@@ -822,6 +866,9 @@ void MSA::create_ins(bam1_t* in_rec,std::vector<std::pair<int,int>>& added){
             cigars[num_cigars]=opcode|(post_len<<BAM_CIGAR_SHIFT);
             ++num_cigars;
             was_set=false;
+        }
+        else if(skip_post){
+            break;
         }
         else{
             if(cur_read_pos<added[nr_idx].first){
@@ -851,15 +898,14 @@ void MSA::parse_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr
     std::vector<int> not_removed_tmp,added_tmp;
     std::vector<std::pair<int,int>> not_removed,added;
 
-//    if(std::strcmp(bam_get_qname(in_rec),"AF049337_118_268_0:0:1_0:0:1_8e4/1")==0){
-//        std::cout<<"found"<<std::endl;
-//    }
-
-    this->graph.fit_read(tag_refID,in_rec_ref_start,tag_ref_end,new_start,s,not_removed_tmp,added_tmp);
-    in_rec_ref_start = new_start;
-    if(std::strcmp(bam_get_qname(in_rec),"AF049337_8840_8990_0:1:0_0:1:0_ac/1")==0){
+    if(std::strcmp(bam_get_qname(in_rec),"KF234628_6778_6928_0:0:0_0:1:0_99a/1")==0){
         std::cout<<"found"<<std::endl;
     }
+
+//    std::cout<<tag_ref_end<<std::endl;
+    this->graph.fit_read(tag_refID,in_rec_ref_start,tag_ref_end,new_start,s,not_removed_tmp,added_tmp);
+    in_rec_ref_start = new_start;
+
     if(in_rec_ref_start != NULL){
         in_rec->core.pos = in_rec_ref_start;
         if(s>0){
@@ -883,6 +929,145 @@ void MSA::parse_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr
     }
 }
 
+void MSA::join_cigars_old(std::vector<bam1_t*>& reads,uint8_t *cigars,int& new_n_cigar_bytes){
+    int cur_mem_pos = 0;
+
+    for(int i=0;i<reads.size();i++){
+        bam1_t* rec = reads[i];
+        if(std::strcmp(bam_get_qname(rec),"KF234628_259_409_0:0:0_0:0:0_5a9/1")==0){
+            std::cout<<"found wrong cigar"<<std::endl;
+        }
+        int cigar_len = rec->core.n_cigar * 4;
+        uint32_t *cigar_full=bam_get_cigar(rec);
+        int opcode=bam_cigar_op(cigar_full[0]);
+        int length=bam_cigar_oplen(cigar_full[0]);
+
+        if(i==reads.size()-1){ // last fragment
+            if(opcode==BAM_CDEL){ // deletions will be computed based on the distance to the nearest start position
+                memcpy(cigars + cur_mem_pos, &cigar_full[1], cigar_len-4);
+                cur_mem_pos+=(cigar_len-4);
+                new_n_cigar_bytes+=(cigar_len-4);
+            }
+            else{
+                memcpy(cigars + cur_mem_pos, cigar_full, cigar_len);
+                cur_mem_pos+=cigar_len;
+                new_n_cigar_bytes+=cigar_len;
+            }
+            break;
+        }
+        if(opcode==BAM_CINS){
+            bam1_t* next_read = reads[i+1];
+            int next_start=next_read->core.pos;
+            int cur_end=bam_endpos(rec);
+            int nd_len=next_start-(cur_end+1);
+            memcpy(cigars + cur_mem_pos, cigar_full, cigar_len);
+            cur_mem_pos+=cigar_len;
+            new_n_cigar_bytes+=cigar_len;
+
+//            cigar_full[0] = BAM_CINS|(length<<BAM_CIGAR_SHIFT);
+//            memcpy(cigars + cur_mem_pos, cigar_full, 4);
+//            cur_mem_pos+=4;
+//            new_n_cigar_bytes+=4;
+
+            if(nd_len>0){
+                cigar_full[0] = BAM_CDEL|(nd_len<<BAM_CIGAR_SHIFT);
+                memcpy(cigars + cur_mem_pos, cigar_full, 4);
+                cur_mem_pos+=4;
+                new_n_cigar_bytes+=4;
+            }
+        }
+        else{
+            bam1_t* next_read = reads[i+1];
+            int next_start=next_read->core.pos;
+            int cur_end=bam_endpos(rec);
+            int nd_len=next_start-cur_end;
+            if(opcode==BAM_CDEL){ // deletions will be computed based on the distance to the nearest start position
+                memcpy(cigars + cur_mem_pos, &cigar_full[1], cigar_len-4);
+                cur_mem_pos+=(cigar_len-4);
+                new_n_cigar_bytes+=(cigar_len-4);
+            }
+            else{
+                memcpy(cigars + cur_mem_pos, cigar_full, cigar_len);
+                cur_mem_pos+=cigar_len;
+                new_n_cigar_bytes+=cigar_len;
+            }
+
+            if(std::strcmp(bam_get_qname(reads[0]),"KF234628_259_409_0:0:0_0:0:0_5a9/1")==0){
+                std::cout<<"else"<<std::endl;
+                print_cigar(rec);
+                print_raw_cigar_uint(cigar_full,cigar_len/4);
+            }
+
+            if(nd_len>0) {
+                cigar_full[0] = BAM_CDEL|(nd_len<<BAM_CIGAR_SHIFT);
+                memcpy(cigars + cur_mem_pos, cigar_full, 4);
+                cur_mem_pos+=4;
+                new_n_cigar_bytes+=4;
+            }
+        }
+    }
+    if(std::strcmp(bam_get_qname(reads[0]),"KF234628_259_409_0:0:0_0:0:0_5a9/1")==0){
+        std::cout<<"cur_mem_pos: "<<cur_mem_pos<<std::endl;
+    }
+}
+
+void MSA::join_cigars(std::vector<bam1_t*>& reads,uint8_t *cigars,int& new_n_cigar_bytes){
+//    int cur_mem_pos = 0;
+//
+//    for(int i=0;i<reads.size();i++){
+//        bam1_t* rec = reads[i];
+//        if(std::strcmp(bam_get_qname(rec),"KF234628_259_409_0:0:0_0:0:0_5a9/1")==0){
+//            std::cout<<"found wrong cigar"<<std::endl;
+//        }
+//        int cigar_len = rec->core.n_cigar * 4;
+//        uint32_t *cigar_full=bam_get_cigar(rec);
+//        int opcode=bam_cigar_op(cigar_full[0]);
+//        int length=bam_cigar_oplen(cigar_full[0]);
+//
+//        if(i==reads.size()-1){ // last fragment
+//            if(opcode==BAM_CDEL){ // deletions will be computed based on the distance to the nearest start position
+//                memcpy(cigars + cur_mem_pos, &cigar_full[1], cigar_len-4);
+//                cur_mem_pos+=(cigar_len-4);
+//                new_n_cigar_bytes+=(cigar_len-4);
+//            }
+//            else{
+//                memcpy(cigars + cur_mem_pos, cigar_full, cigar_len);
+//                cur_mem_pos+=cigar_len;
+//                new_n_cigar_bytes+=cigar_len;
+//            }
+//            break;
+//        }
+//        if(opcode==BAM_CINS){ // TODO:
+//            bam1_t* next_read = reads[i+1];
+//            memcpy(cigars + cur_mem_pos, cigar_full, cigar_len);
+//            cur_mem_pos+=cigar_len;
+//            new_n_cigar_bytes+=cigar_len;
+//        }
+//        else{
+//            bam1_t* next_read = reads[i+1];
+//            uint32_t *cigar_full_next_read=bam_get_cigar(rec);
+//            int opcode_next_read=bam_cigar_op(cigar_full[0]);
+//            int length_next_read=bam_cigar_oplen(cigar_full[0]);
+//
+//            int next_read_start =
+//        }
+//    }
+
+    int cur_mem_pos = 0;
+
+    for(int i=0;i<reads.size();i++) {
+        bam1_t *rec = reads[i];
+        int cigar_len = rec->core.n_cigar * 4;
+        uint32_t *cigar_full = bam_get_cigar(rec);
+
+        memcpy(cigars + cur_mem_pos, cigar_full, cigar_len);
+        cur_mem_pos += (cigar_len);
+        new_n_cigar_bytes += (cigar_len);
+    }
+    // TODO: need to get rid of the I/D/N from the cigar strings of individual split fragments and move them to the opt tags
+    //   this will allow us to rely more confidently on the start/end sites of the reads
+}
+
 void MSA::joinReads(std::vector<bam1_t*>& reads,samFile *outSAM_joined,bam_hdr_t *outSAM_joined_header){
     if(reads.empty()){
         return;
@@ -900,11 +1085,20 @@ void MSA::joinReads(std::vector<bam1_t*>& reads,samFile *outSAM_joined,bam_hdr_t
         seq_num_bytes++;
     }
 
+    // iteratively add cigar information here
+    // need to treat Deletions and splice junctions as non-existent and replace their length with the actual length inside
+    int cur_mem_pos = 0;
+    int new_n_cigar_bytes = 0;
+
+    uint8_t* cigars = (uint8_t*)calloc(MAX_CIGARS,1);
+
+    join_cigars(reads,cigars,new_n_cigar_bytes);
+
     bam1_t* new_rec = bam_dup1(reads.front());
 
     int new_aux_len = new_rec->l_data - (((new_rec->core.n_cigar)*4) + new_rec->core.l_qname + ((new_rec->core.l_qseq + 1)/2) + new_rec->core.l_qseq);
 
-    int data_len = new_rec->core.l_qname + (total_num_cigars * 4) + seq_num_bytes + total_seq_len + new_aux_len; // the total length of the data to be populated from joined reads into the final record
+    int data_len = new_rec->core.l_qname + new_n_cigar_bytes + seq_num_bytes + total_seq_len + new_aux_len; // the total length of the data to be populated from joined reads into the final record
 
     int m_data=std::max(data_len,(int)new_rec->m_data);
     kroundup32(m_data);
@@ -914,15 +1108,30 @@ void MSA::joinReads(std::vector<bam1_t*>& reads,samFile *outSAM_joined,bam_hdr_t
     // copy everything (QNAME) until CIGAR data
     int name_len = (uint8_t*)bam_get_cigar(new_rec) - new_rec->data;
     memcpy(data, new_rec->data, name_len);
+    cur_mem_pos = name_len;
 
-    // iteratively add cigar information here
-    // TODO: induce indels at this place if no path through the graph is available
-    int cur_mem_pos = name_len;
-    for(bam1_t *rec : reads){
-        int cigar_len = rec->core.n_cigar * 4;
-        memcpy(data + cur_mem_pos, rec->data+name_len, cigar_len);
-        cur_mem_pos+=cigar_len;
-    }
+    memcpy(data+cur_mem_pos, cigars, new_n_cigar_bytes);
+    cur_mem_pos += new_n_cigar_bytes;
+
+//    for(int i=0;i<reads.size();i++){
+//        bam1_t* rec = reads[i];
+//        int cigar_len = rec->core.n_cigar * 4;
+//
+//        // change cigar string if necessary
+//        uint32_t *cigar_full=bam_get_cigar(rec);
+//        int opcode=bam_cigar_op(cigar_full[0]);
+//        if(opcode==BAM_CDEL){
+//            if(i==0){ // first read should never start with a deletion
+//                std::cerr<<"first read should never start with a deletion"<<std::endl;
+//                exit(-1);
+//            }
+//            int new_length = rec->core.pos - bam_endpos(reads[i-1]);
+//            cigar_full[0] = BAM_CDEL|(new_length<<BAM_CIGAR_SHIFT);
+//        }
+//
+//        memcpy(data + cur_mem_pos, cigar_full, cigar_len);
+//        cur_mem_pos+=cigar_len;
+//    }
 
     // iteratively add sequence pieces to the new record
     bool merge_last_first = false; // if set notifies that first 4 bytes of the last byte of previous sequence need to be combined accordingly with the first 4 bytes of the current sequence before copying the rest
@@ -990,13 +1199,20 @@ void MSA::joinReads(std::vector<bam1_t*>& reads,samFile *outSAM_joined,bam_hdr_t
     int remain_len = rec->l_data - copied_len;
     memcpy(data+cur_mem_pos,rec->data+copied_len,remain_len);
 
-    new_rec->core.n_cigar = total_num_cigars;
+    new_rec->core.n_cigar = (new_n_cigar_bytes/4);
     new_rec->core.l_qseq = total_seq_len;
 
     free(new_rec->data);
     new_rec->data = data;
     new_rec->l_data = data_len;
     new_rec->m_data = m_data;
+
+    if(std::strcmp(bam_get_qname(new_rec),"KF234628_259_409_0:0:0_0:0:0_5a9/1")==0){
+        std::cout<<"found wrong cigar"<<std::endl;
+        print_cigar(new_rec);
+        print_seq(new_rec);
+        std::cout<<new_n_cigar_bytes<<std::endl;
+    }
 
     int ret = sam_write1(outSAM_joined,outSAM_joined_header,new_rec);
     return;
@@ -1012,7 +1228,6 @@ void MSA::realign(std::string in_sam,std::string out_sam){
     bam_hdr_t *outSAM_header=bam_hdr_init();
     outSAM_header=bam_hdr_dup(msa_hdr);
     sam_hdr_write(outSAM,outSAM_header);
-    bam_hdr_destroy(outSAM_header);
 
     samFile *in_al=sam_open(in_sam.c_str(),"r");
     bam_hdr_t *in_al_hdr = sam_hdr_read(in_al); //read header
@@ -1027,10 +1242,12 @@ void MSA::realign(std::string in_sam,std::string out_sam){
         else{
             std::string ref_name = std::string(in_al_hdr->target_name[in_rec->core.tid]);
             int refID = this->graph.get_id(ref_name); // reference ID of the read
-            int new_end = this->graph.get_new_position(refID,in_rec->core.pos+in_rec->core.l_qseq);
+            int new_end = this->graph.get_new_position(refID,bam_endpos(in_rec));
             int new_start = this->graph.get_new_position(refID,in_rec->core.pos);
-            this->graph.add2refcount(new_start,refID); // TODO: the vector needs to be pre-populated while loading the index
+            this->graph.add2refcount(new_start,refID);
             add_orig_ref_tags(in_rec,refID,new_end);
+            in_rec->core.pos = new_start;
+            in_rec->core.tid = 0;
             int ret_val = sam_write1(outSAM, outSAM_header, in_rec);
         }
     }
@@ -1038,6 +1255,7 @@ void MSA::realign(std::string in_sam,std::string out_sam){
     bam_destroy1(in_rec);
     sam_close(in_al);
     sam_close(outSAM);
+    bam_hdr_destroy(outSAM_header);
 
     std::cerr<<"@LOG::::Done fitting alignment to MSA"<<std::endl;
 
@@ -1060,9 +1278,14 @@ void MSA::realign(std::string in_sam,std::string out_sam){
     in_al_hdr->ignore_sam_err=1;
     in_rec = bam_init1(); //initialize an alignment
 
-    this->clean();
+//    this->clean();
 
+    int c = 0;
     while(sam_read1(in_al, in_al_hdr, in_rec) >= 0) {
+//        if(c==10){
+//            break;
+//        }
+//        c++;
         parse_read(in_rec,in_al_hdr,outSAM_clean,outSAM_clean_header);
     }
 
@@ -1074,7 +1297,7 @@ void MSA::realign(std::string in_sam,std::string out_sam){
     sam_close(in_al);
     sam_close(outSAM_clean);
     std::cerr<<"@LOG::::Done cleaning graph"<<std::endl;
-
+//
     std::cerr<<"@LOG::::Begin sorting disjoint alignments by name"<<std::endl;
 
     sam_sort_cmd = "samtools sort -n -o "+out_sam+".sorted_name.bam "+out_sam+".clean";
@@ -1121,7 +1344,6 @@ void MSA::realign(std::string in_sam,std::string out_sam){
                 reads.emplace_back(bam_dup1(in_rec));
             }
         }
-
     }
 
     bam_destroy1(in_rec);
