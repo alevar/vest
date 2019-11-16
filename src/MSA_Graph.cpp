@@ -117,12 +117,6 @@ void MSA_Graph::save_graph2dot(std::ofstream &out_fp){
 }
 
 void MSA_Graph::save_merged_fasta(std::string& out_fp){
-    for(int i=6600;i<6900;i++){
-        if(this->removed[i]){
-            std::cout<<"removed: "<<i<<std::endl;
-        }
-    }
-
     std::ofstream merged_fp(out_fp.c_str());
     merged_fp<<">MSA"<<std::endl;
 
@@ -234,9 +228,6 @@ void MSA_Graph::fit_read(int refID,int ref_start,int end,int& new_start, int& s,
     }
     if(to_remove.size()>0){
         for(auto& vid : to_remove){
-            if(vid==6823){
-                std::cout<<"found"<<std::endl;
-            }
             this->removed[vid]=1;
         }
     }
@@ -245,15 +236,6 @@ void MSA_Graph::fit_read(int refID,int ref_start,int end,int& new_start, int& s,
     if(end>this->farthestEnd){
         farthestEnd = end;
     }
-//    std::vector<int> to_remove_idx;
-//    if(s>0 && !added.empty()){
-//        for(int i=0;i<added.size();i++){
-//            if(added[i]-s<0){
-//
-//            }
-//            added[i]=added[i]-s;
-//        }
-//    }
 }
 
 int MSA_Graph::get_gff_pos(int refID,int pos){
@@ -377,5 +359,4 @@ void MSA_Graph::init_refcouts(){
         std::exit(-1);
     }
     this->refids_counts = std::vector<std::map<int,int>>(this->length,std::map<int,int>{});
-    std::cout<<refids_counts.size()<<"\t"<<this->length<<std::endl;
 }
