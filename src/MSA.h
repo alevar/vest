@@ -62,7 +62,14 @@ private:
     void split_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr_t* outSAM_header);
     void write_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr_t* outSAM_header);
     void add_orig_ref_tags(bam1_t* in_rec,int ref,int new_end);
-    void add_split_tags(bam1_t* in_rec,int cur_slice,int opcode);
+    void add_split_tags(bam1_t* in_rec,int cur_slice,int opcode,int length);
+    void remove_aux_tags(bam1_t* rec);
+    int get_ins_len(bam1_t* rec);
+    void get_ins_seq(bam1_t* rec,uint8_t* seq,int& seq_len);
+    void get_ins_qual(bam1_t* rec,uint8_t* qual,int& qual_len);
+    void get_split_op_tags(bam1_t* rec,int& opcode,int&oplen);
+    void add_seq_slice_tag(bam1_t* in_rec,uint8_t* seq_slice,int seq_len);
+    bool get_seq_slice(bam1_t* in_rec,bam1_t* out_rec,int cur_start,int cur_len,bool shift);
 
     void clean();
     void parse_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr_t* outSAM_header);
@@ -86,6 +93,9 @@ private:
 
     void join_cigars_old(std::vector<bam1_t*>& reads,uint8_t *cigars,int& new_n_cigar_bytes);
     void join_cigars(std::vector<bam1_t*>& reads,uint8_t *cigars,int& new_n_cigar_bytes);
+    void merge_seqs(uint8_t* data,uint8_t* seq,int seq_len,int& cur_mem_pos,bool orphan);
+    void join_seqs(std::vector<bam1_t*>& reads,uint8_t* data,int& cur_mem_pos,int max_seq_len);
+    void join_quals(std::vector<bam1_t*>& reads,uint8_t* data,int& cur_mem_pos,int max_seq_len);
     void joinReads(std::vector<bam1_t*>& reads,samFile *outSAM_joined,bam_hdr_t *outSAM_joined_header);
 
 

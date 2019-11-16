@@ -538,7 +538,7 @@ void MSA::add_orig_ref_tags(bam1_t* in_rec,int ref,int new_end){
     bam_aux_append(in_rec,"ZB",'i',4,(uint8_t*)&new_end);
 }
 
-void MSA::add_split_tags(bam1_t* in_rec,int cur_slice,int opcode){
+void MSA::add_split_tags(bam1_t* in_rec,int cur_slice,int opcode,int length){
     uint8_t* ptr_op=bam_aux_get(in_rec,"ZC");
     if(ptr_op){bam_aux_del(in_rec,ptr_op);}
     bam_aux_append(in_rec,"ZC",'i',4,(uint8_t*)&cur_slice);
@@ -546,16 +546,97 @@ void MSA::add_split_tags(bam1_t* in_rec,int cur_slice,int opcode){
     ptr_op=bam_aux_get(in_rec,"ZD");
     if(ptr_op){bam_aux_del(in_rec,ptr_op);}
     bam_aux_append(in_rec,"ZD",'i',4,(uint8_t*)&opcode);
+
+    ptr_op=bam_aux_get(in_rec,"ZJ");
+    if(ptr_op){bam_aux_del(in_rec,ptr_op);}
+    bam_aux_append(in_rec,"ZJ",'i',4,(uint8_t*)&length);
+}
+
+void MSA::add_seq_slice_tag(bam1_t* in_rec,uint8_t* seq_slice,int seq_len){
+    uint8_t* ptr_op=bam_aux_get(in_rec,"ZL");
+    if(ptr_op){bam_aux_del(in_rec,ptr_op);}
+    bam_aux_append(in_rec,"ZL",'i',4,(uint8_t*)&seq_len);
+
+    ptr_op=bam_aux_get(in_rec,"ZS");
+    if(ptr_op){bam_aux_del(in_rec,ptr_op);}
+    bam_aux_append(in_rec,"ZS",'Z',seq_len,seq_slice);
+}
+
+bool MSA::get_seq_slice(bam1_t* in_rec,bam1_t* out_rec,int cur_start,int cur_len,bool shift){
+//    int old_num_cigars = in_rec->core.n_cigar;
+
+    int first_byte = cur_start/2;
+    shift=false;
+    if(cur_start%2==1){
+        shift=true;
+    }
+    int num_bytes = (cur_len+1)/2;
+    if(shift){
+        num_bytes++;
+    }
+
+    int res_num_bytes = cur_len/2;
+    if(cur_len%2==1){
+        res_num_bytes++;
+    }
+
+    // shorten sequence string and copy it over to the new data
+    uint8_t seq_ar[num_bytes];
+    memcpy(seq_ar,bam_get_seq(in_rec)+first_byte,num_bytes);
+    uint8_t *seq = seq_ar;
+
+    if(shift){
+        while (seq < seq_ar+num_bytes-1) {
+            *seq = (*(seq)&0x0F)<<4 | (*(seq+1)&0xF0)>>4; // 0000 1111 - 1111 0000
+            seq++;
+        }
+        *seq = (*(seq)&0x0F)<<4; // 0000 1111
+    }
+    seq=seq_ar;
+    seq[res_num_bytes] = '\0';
+
+    uint8_t* ptr_op=bam_aux_get(out_rec,"ZS");
+    if(ptr_op){bam_aux_del(out_rec,ptr_op);}
+    bam_aux_append(out_rec,"ZS",'Z',res_num_bytes+1,seq);
+
+    // now also get the quality string into another aux tag
+    uint8_t qual_ar[cur_len+1];
+    memcpy(qual_ar,bam_get_qual(in_rec)+cur_start,cur_len);
+    uint8_t* qual=qual_ar;
+    qual[cur_len]='\0';
+    ptr_op=bam_aux_get(out_rec,"ZQ");
+    if(ptr_op){bam_aux_del(out_rec,ptr_op);}
+    bam_aux_append(out_rec,"ZQ",'Z',cur_len+1,qual);
+
+//    ptr_op=bam_aux_get(out_rec,"ZQ");
+//    if(ptr_op){
+//        char *zq = NULL;
+//        zq=bam_aux2Z(ptr_op);
+//        printf("%s\n", zq);
+//    }
+
+    return shift^((cur_len%2)==1);
+}
+
+void MSA::remove_aux_tags(bam1_t* rec){
+    uint8_t* ptr_op=bam_aux_get(rec,"ZS");
+    if(ptr_op){bam_aux_del(rec,ptr_op);}
+
+    ptr_op=bam_aux_get(rec,"ZC");
+    if(ptr_op){bam_aux_del(rec,ptr_op);}
+
+    ptr_op=bam_aux_get(rec,"ZD");
+    if(ptr_op){bam_aux_del(rec,ptr_op);}
+
+    ptr_op=bam_aux_get(rec,"ZJ");
+    if(ptr_op){bam_aux_del(rec,ptr_op);}
 }
 
 // split read based on the cigar string (Deletion/Insertion/SpliceSite)
 void MSA::split_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr_t* outSAM_header){
-//    if(std::strcmp(bam_get_qname(in_rec),"KF234628_650_800_0:3:0_0:1:0_7fa/1")==0){
-//        std::cout<<"found"<<std::endl;
-//    }
     int cigars[MAX_CIGARS];
     int cur_total_pos = in_rec->core.pos; // same as cur_pos but includes the soft clipping bases
-    int cur_start=in_rec->core.pos;
+    int cur_start=in_rec->core.pos,cur_end=in_rec->core.pos;
     int cur_local_start = 0;
     int cur_len = 0;
     int cur_ref_len=0;
@@ -584,31 +665,39 @@ void MSA::split_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr
             new_rec->core.l_qseq = cur_len;
             new_end = this->graph.get_new_position(refID,bam_endpos(new_rec));
             new_start = this->graph.get_new_position(refID,new_rec->core.pos);
-            if(std::strcmp(bam_get_qname(in_rec),"KF234628_279_429_0:0:0_0:0:0_ae9/1")==0){
-                std::cout<<"start: "<<new_rec->core.pos<<std::endl;
+            add_orig_ref_tags(new_rec,refID,new_end);
+            add_split_tags(new_rec,cur_slice,opcode,length);
+            // need to know where we are on the read and then use that in order to get the sequence of the insertion and correctly position the sliced fragment on the reference graph
+            cur_local_start += cur_len;
+            cur_start=cur_end;
+            if(std::strcmp(bam_get_qname(in_rec),"KF234628_609_759_0:0:1_0:1:1_6dc/1")==0){
+                std::cout<<cur_start<<"\t"<<cur_end<<"\t"<<new_start<<"\t"<<new_end<<std::endl;
+//                print_qual(new_rec);
             }
-            add_orig_ref_tags(new_rec,refID,new_end); // TODO: need new_end information which will only be available after parsing the whole read - as such need to write at the end of the full evaluation
-            add_split_tags(new_rec,cur_slice,opcode);
+            if(opcode==BAM_CINS){ // add the slice of the sequence here which can later be reinserted back into the joined read
+                shift = get_seq_slice(in_rec,new_rec,cur_local_start,length,shift);
+                cur_local_start+=length;
+            }
+            else{
+                cur_end+=length;
+                cur_start+=length;
+            }
             new_rec->core.pos = new_start;
             new_rec->core.tid = 0;
+//            if(std::strcmp(bam_get_qname(in_rec),"KF234628_609_759_0:0:1_0:1:1_6dc/1")==0){
+////                std::cout<<cur_start<<"\t"<<cur_end<<"\t"<<new_start<<"\t"<<new_end<<std::endl;
+//                print_qual(new_rec);
+//            }
             int ret_val = sam_write1(outSAM, outSAM_header, new_rec);
             cur_slice++;
 
             new_rec = bam_dup1(in_rec);
             num_cigars = 0;
-            cur_start+=cur_len;
-            cur_local_start += cur_len;
             cur_len = 0;
             cur_ref_len=0;
-            if(opcode==BAM_CINS){
-                cur_len+=length;
-            }
-            else{
-                cur_start+=length;
+            if(opcode!=BAM_CINS){
                 cur_ref_len+=length;
             }
-            cigars[num_cigars]=opcode|(length<<BAM_CIGAR_SHIFT);
-            ++num_cigars;
         }
         else{
             cigars[num_cigars]=opcode|(length<<BAM_CIGAR_SHIFT);
@@ -616,6 +705,7 @@ void MSA::split_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr
             cur_len+=length;
             if(opcode!=BAM_CSOFT_CLIP){
                 cur_ref_len+=length;
+                cur_end+=length;
             }
         }
     }
@@ -624,13 +714,13 @@ void MSA::split_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr
     new_rec->core.l_qseq = cur_len;
     new_end = this->graph.get_new_position(refID,bam_endpos(new_rec));
     new_start = this->graph.get_new_position(refID,new_rec->core.pos);
+//    if(std::strcmp(bam_get_qname(in_rec),"KF234628_609_759_0:0:1_0:1:1_6dc/1")==0){
+//        std::cout<<cur_start<<"\t"<<cur_end<<"\t"<<new_start<<"\t"<<new_end<<std::endl;
+//    }
     add_orig_ref_tags(new_rec,refID,new_end);
     new_rec->core.pos = new_start;
     new_rec->core.tid = 0;
-    add_split_tags(new_rec,cur_slice,0); // 0 opcode here means that this is the last segment in the read
-//    std::cout<<bam_get_qname(in_rec)<<std::endl;
-//    print_cigar(in_rec);
-//    print_seq(in_rec);
+    add_split_tags(new_rec,cur_slice,0,0); // 0 opcode here means that this is the last segment in the read
     int ret_val = sam_write1(outSAM, outSAM_header, new_rec);
 }
 
@@ -879,9 +969,6 @@ void MSA::create_ins(bam1_t* in_rec,std::vector<std::pair<int,int>>& added){
     }
 
     add_cigar(in_rec,num_cigars,cigars);
-//    std::cout<<bam_get_qname(in_rec)<<std::endl;
-//    print_cigar(in_rec);
-
     return;
 }
 
@@ -902,25 +989,21 @@ void MSA::parse_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr
         std::cout<<"found"<<std::endl;
     }
 
-//    std::cout<<tag_ref_end<<std::endl;
     this->graph.fit_read(tag_refID,in_rec_ref_start,tag_ref_end,new_start,s,not_removed_tmp,added_tmp);
     in_rec_ref_start = new_start;
 
     if(in_rec_ref_start != NULL){
         in_rec->core.pos = in_rec_ref_start;
         if(s>0){
-//            std::cout<<"changing cigar"<<std::endl; // this case happens when the starting positions have been altered
             change_cigar(in_rec,s);
         }
         if(not_removed_tmp.size()>0){
-//            std::cout<<"creating deletion"<<std::endl;
             // instead of introducing a deletion into the actual cigar string - perhaps would make sense to simply split the read and record the type for later
             // how can we do this without having to repeat the same process for the reads that fall in here
             l2range(not_removed_tmp,not_removed);
             create_del(in_rec,not_removed);
         }
         if(added_tmp.size()>0){
-//            std::cout<<"creating insertion"<<std::endl;
             // instead of introducing a deletion into the actual cigar string - perhaps would make sense to simply split the read and record the type for later
             l2range(added_tmp,added);
             create_ins(in_rec,added);
@@ -1011,61 +1094,239 @@ void MSA::join_cigars_old(std::vector<bam1_t*>& reads,uint8_t *cigars,int& new_n
     }
 }
 
-void MSA::join_cigars(std::vector<bam1_t*>& reads,uint8_t *cigars,int& new_n_cigar_bytes){
-//    int cur_mem_pos = 0;
-//
-//    for(int i=0;i<reads.size();i++){
-//        bam1_t* rec = reads[i];
-//        if(std::strcmp(bam_get_qname(rec),"KF234628_259_409_0:0:0_0:0:0_5a9/1")==0){
-//            std::cout<<"found wrong cigar"<<std::endl;
-//        }
-//        int cigar_len = rec->core.n_cigar * 4;
-//        uint32_t *cigar_full=bam_get_cigar(rec);
-//        int opcode=bam_cigar_op(cigar_full[0]);
-//        int length=bam_cigar_oplen(cigar_full[0]);
-//
-//        if(i==reads.size()-1){ // last fragment
-//            if(opcode==BAM_CDEL){ // deletions will be computed based on the distance to the nearest start position
-//                memcpy(cigars + cur_mem_pos, &cigar_full[1], cigar_len-4);
-//                cur_mem_pos+=(cigar_len-4);
-//                new_n_cigar_bytes+=(cigar_len-4);
-//            }
-//            else{
-//                memcpy(cigars + cur_mem_pos, cigar_full, cigar_len);
-//                cur_mem_pos+=cigar_len;
-//                new_n_cigar_bytes+=cigar_len;
-//            }
-//            break;
-//        }
-//        if(opcode==BAM_CINS){ // TODO:
-//            bam1_t* next_read = reads[i+1];
-//            memcpy(cigars + cur_mem_pos, cigar_full, cigar_len);
-//            cur_mem_pos+=cigar_len;
-//            new_n_cigar_bytes+=cigar_len;
-//        }
-//        else{
-//            bam1_t* next_read = reads[i+1];
-//            uint32_t *cigar_full_next_read=bam_get_cigar(rec);
-//            int opcode_next_read=bam_cigar_op(cigar_full[0]);
-//            int length_next_read=bam_cigar_oplen(cigar_full[0]);
-//
-//            int next_read_start =
-//        }
-//    }
+void MSA::get_split_op_tags(bam1_t* rec,int& opcode,int&oplen){
+    uint8_t* ptr_op=bam_aux_get(rec,"ZD");
+    if(ptr_op){
+        opcode = bam_aux2i(ptr_op);
+        if(opcode==1){ // insertion
+            ptr_op=bam_aux_get(rec,"ZJ");
+            if(ptr_op){
+                oplen = bam_aux2i(ptr_op);
+            }
+            else{
+                std::cerr<<"ERROR:: did not find corresponding length"<<std::endl;
+                exit(-1);
+            }
+        }
+    }
+}
 
+void MSA::join_cigars(std::vector<bam1_t*>& reads,uint8_t *cigars,int& new_n_cigar_bytes){
     int cur_mem_pos = 0;
 
-    for(int i=0;i<reads.size();i++) {
-        bam1_t *rec = reads[i];
+    for(int i=0;i<reads.size();i++){
+        bam1_t* rec = reads[i];
         int cigar_len = rec->core.n_cigar * 4;
-        uint32_t *cigar_full = bam_get_cigar(rec);
+        uint32_t *cigar_full=bam_get_cigar(rec);
+        int opcode,oplen;
+        get_split_op_tags(rec,opcode,oplen);
 
-        memcpy(cigars + cur_mem_pos, cigar_full, cigar_len);
-        cur_mem_pos += (cigar_len);
-        new_n_cigar_bytes += (cigar_len);
+        if(i==reads.size()-1){ // last fragment
+            memcpy(cigars + cur_mem_pos, cigar_full, cigar_len);
+            cur_mem_pos+=cigar_len;
+            new_n_cigar_bytes+=cigar_len;
+            break;
+        }
+        if(opcode==BAM_CINS){
+            bam1_t* next_read = reads[i+1];
+            int next_start=next_read->core.pos;
+            int cur_end=bam_endpos(rec);
+            int nd_len=next_start-(cur_end+1);
+
+            // copy the cigar of the current slice
+            memcpy(cigars + cur_mem_pos, cigar_full, cigar_len);
+            cur_mem_pos+=cigar_len;
+            new_n_cigar_bytes+=cigar_len;
+
+            // create the insertion
+            cigar_full[0] = BAM_CINS|(oplen<<BAM_CIGAR_SHIFT);
+            memcpy(cigars + cur_mem_pos, cigar_full, 4);
+            cur_mem_pos+=4;
+            new_n_cigar_bytes+=4;
+
+            if(nd_len>0){
+                cigar_full[0] = BAM_CDEL|(nd_len<<BAM_CIGAR_SHIFT);
+                memcpy(cigars + cur_mem_pos, cigar_full, 4);
+                cur_mem_pos+=4;
+                new_n_cigar_bytes+=4;
+            }
+        }
+        else{
+            bam1_t* next_read = reads[i+1];
+            int next_start=next_read->core.pos;
+            int cur_end=bam_endpos(rec);
+            int nd_len=next_start-cur_end;
+
+            // copy the cigar of the current slice
+            memcpy(cigars + cur_mem_pos, cigar_full, cigar_len);
+            cur_mem_pos+=cigar_len;
+            new_n_cigar_bytes+=cigar_len;
+
+            if(nd_len>=0){
+                cigar_full[0] = opcode|(nd_len<<BAM_CIGAR_SHIFT);
+                memcpy(cigars + cur_mem_pos, cigar_full, 4);
+                cur_mem_pos+=4;
+                new_n_cigar_bytes+=4;
+            }
+        }
     }
-    // TODO: need to get rid of the I/D/N from the cigar strings of individual split fragments and move them to the opt tags
-    //   this will allow us to rely more confidently on the start/end sites of the reads
+}
+
+int MSA::get_ins_len(bam1_t* rec){
+    uint8_t* ptr_op=bam_aux_get(rec,"ZD");
+    if(ptr_op){
+        int opcode = bam_aux2i(ptr_op);
+        if(opcode==1){ // insertion
+            ptr_op=bam_aux_get(rec,"ZJ");
+            if(ptr_op){
+                int oplen = bam_aux2i(ptr_op);
+                return oplen;
+            }
+        }
+    }
+    return 0;
+}
+
+void MSA::get_ins_seq(bam1_t* rec,uint8_t* seq,int& seq_len){
+    uint8_t* ptr_seq=bam_aux_get(rec,"ZS"); // ZS is only set if insertion
+    if(ptr_seq){
+        uint8_t* ptr_oplen=bam_aux_get(rec,"ZJ");
+        if(ptr_oplen){
+            seq_len = bam_aux2i(ptr_oplen);
+                memcpy(seq,bam_aux2Z(ptr_seq),(seq_len+1)/2);
+//                std::cout<<"ins len: "<<seq_len<<std::endl;
+//                int32_t qlen = seq_len;
+//                int8_t *buf = NULL;
+//                buf = static_cast<int8_t *>(realloc(buf, qlen+1));
+//                buf[qlen] = '\0';
+//                for (int i = 0; i < qlen; ++i)
+//                    buf[i] = bam_seqi(seq, i);
+//                for (int i = 0; i < qlen; ++i) {
+//                    buf[i] = seq_nt16_str[buf[i]];
+//                }
+//                std::string str_seq((char*)(char*)buf);
+//                std::cout<<"sequence"<<str_seq<<std::endl;
+        }
+        else{
+            std::cerr<<"ERROR:::sequence exists but no length"<<std::endl;
+            exit(-1);
+        }
+    }
+}
+
+void MSA::merge_seqs(uint8_t* data,uint8_t* seq,int seq_len,int& cur_mem_pos,bool orphan){
+    int num_bytes = (seq_len+1)/2;
+    uint8_t* seq_dup = seq;
+    std::cout<<"ophan: "<<int(orphan)<<std::endl;
+    if(orphan){
+        uint8_t byte_ar[1];
+        memcpy(byte_ar,data+cur_mem_pos-1,1); // copy the last byte over which will contain the orphan bit
+
+        uint8_t *byte = byte_ar;
+        *byte = (*(byte)&0xF0) | (*(seq)&0xF0)>>4;
+        memcpy(data+cur_mem_pos-1,byte_ar,1);
+
+        int i=0;
+        while (i < num_bytes-1) {
+            *seq = (*(seq)&0x0F)<<4 | (*(seq+1)&0xF0)>>4; // 0000 1111 - 1111 0000
+            seq++;
+            i++;
+        }
+        *seq = (*(seq)&0x0F)<<4; // 0000 1111
+        seq=seq_dup;
+    }
+
+    int last_bit = int(orphan&(seq_len%2==1));
+    memcpy(data+cur_mem_pos,seq,num_bytes-last_bit);
+    cur_mem_pos+=(num_bytes-last_bit);
+}
+
+void MSA::join_seqs(std::vector<bam1_t*>& reads,uint8_t* data,int& cur_mem_pos,int max_seq_len){
+    // iteratively add sequence pieces to the new record
+    bool merge_last_first = false; // if set notifies that first 4 bytes of the last byte of previous sequence need to be combined accordingly with the first 4 bytes of the current sequence before copying the rest
+    bam1_t *rec;
+    for(int i=0;i<reads.size();i++){
+        rec = bam_dup1(reads[i]);
+        int seq_len = rec->core.l_qseq;
+
+        int num_bytes = (seq_len+1)/2;
+        uint8_t seq_ar[num_bytes];
+        memcpy(seq_ar,bam_get_seq(rec),num_bytes);
+        uint8_t *seq = seq_ar;
+
+        if(merge_last_first){
+            merge_seqs(data,seq,seq_len,cur_mem_pos,true);
+        }
+        else{
+            memcpy(data+cur_mem_pos,seq_ar,num_bytes);
+            cur_mem_pos+=num_bytes;
+        }
+        // process potential insertions here
+        uint8_t seq_tag_ar[(max_seq_len+1)/2];// = (uint8_t*)calloc(max_seq_len,1);
+        uint8_t* seq_tag = seq_tag_ar;
+        int seq_len_tag = 0;
+        get_ins_seq(rec,seq_tag,seq_len_tag);
+        if(seq_len_tag>0){ // insertion exists - need to add accordingly
+            bool shift = merge_last_first;
+            if(seq_len%2==1){
+                shift=!shift;
+            }
+            merge_seqs(data,seq_tag,seq_len_tag,cur_mem_pos,shift);
+            seq_len+=seq_len_tag; // append the length of the modification to the rest for proper evaluation of shifting below
+        }
+        if(seq_len%2==1){
+            merge_last_first=!merge_last_first;
+        }
+    }
+}
+
+void MSA::get_ins_qual(bam1_t* rec,uint8_t* qual,int& qual_len){
+    uint8_t* ptr_qual=bam_aux_get(rec,"ZQ"); // ZQ is only set if insertion
+    if(ptr_qual){
+        uint8_t* ptr_oplen=bam_aux_get(rec,"ZJ");
+        if(ptr_oplen){
+            qual_len = bam_aux2i(ptr_oplen);
+            memcpy(qual,bam_aux2Z(ptr_qual),qual_len);
+//                std::cout<<"ins len: "<<seq_len<<std::endl;
+//                int32_t qlen = seq_len;
+//                int8_t *buf = NULL;
+//                buf = static_cast<int8_t *>(realloc(buf, qlen+1));
+//                buf[qlen] = '\0';
+//                for (int i = 0; i < qlen; ++i)
+//                    buf[i] = bam_seqi(seq, i);
+//                for (int i = 0; i < qlen; ++i) {
+//                    buf[i] = seq_nt16_str[buf[i]];
+//                }
+//                std::string str_seq((char*)(char*)buf);
+//                std::cout<<"sequence"<<str_seq<<std::endl;
+        }
+        else{
+            std::cerr<<"ERROR:::quality exists but no length"<<std::endl;
+            exit(-1);
+        }
+    }
+}
+
+void MSA::join_quals(std::vector<bam1_t*>& reads,uint8_t* data,int& cur_mem_pos,int max_seq_len){
+    bam1_t *rec;
+    for(int i=0;i<reads.size();i++){
+        rec = bam_dup1(reads[i]);
+        int qual_len = rec->core.l_qseq;
+
+//        uint8_t qual_ar[qual_len];
+//        memcpy(qual_ar,bam_get_seq(rec),qual_len);
+//        uint8_t *seq = qual_ar;
+        memcpy(data+cur_mem_pos,bam_get_qual(rec),qual_len);
+        cur_mem_pos+=qual_len;
+        uint8_t qual_tag_ar[max_seq_len];// = (uint8_t*)calloc(max_seq_len,1);
+        uint8_t* qual_tag = qual_tag_ar;
+        int qual_len_tag = 0;
+        get_ins_qual(rec,qual_tag,qual_len_tag);
+        if(qual_len_tag>0){ // insertion exists - need to add accordingly
+            memcpy(data+cur_mem_pos,qual_tag,qual_len_tag);
+            cur_mem_pos+=qual_len_tag;
+        }
+    }
 }
 
 void MSA::joinReads(std::vector<bam1_t*>& reads,samFile *outSAM_joined,bam_hdr_t *outSAM_joined_header){
@@ -1076,9 +1337,11 @@ void MSA::joinReads(std::vector<bam1_t*>& reads,samFile *outSAM_joined,bam_hdr_t
     int total_seq_len = 0;
     int total_num_cigars = 0;
     for(bam1_t *rec : reads){
-        total_seq_len+=rec->core.l_qseq;
+        int ins_len = get_ins_len(rec);
+        total_seq_len+=rec->core.l_qseq+ins_len;
         total_num_cigars+=rec->core.n_cigar;
     }
+    total_num_cigars+=(reads.size()-1); // account for hidden modifications
 
     int seq_num_bytes = total_seq_len/2;
     if(total_seq_len%2==1){ // because there is a shift at both ends - the results will contain one byte less
@@ -1113,91 +1376,17 @@ void MSA::joinReads(std::vector<bam1_t*>& reads,samFile *outSAM_joined,bam_hdr_t
     memcpy(data+cur_mem_pos, cigars, new_n_cigar_bytes);
     cur_mem_pos += new_n_cigar_bytes;
 
-//    for(int i=0;i<reads.size();i++){
-//        bam1_t* rec = reads[i];
-//        int cigar_len = rec->core.n_cigar * 4;
-//
-//        // change cigar string if necessary
-//        uint32_t *cigar_full=bam_get_cigar(rec);
-//        int opcode=bam_cigar_op(cigar_full[0]);
-//        if(opcode==BAM_CDEL){
-//            if(i==0){ // first read should never start with a deletion
-//                std::cerr<<"first read should never start with a deletion"<<std::endl;
-//                exit(-1);
-//            }
-//            int new_length = rec->core.pos - bam_endpos(reads[i-1]);
-//            cigar_full[0] = BAM_CDEL|(new_length<<BAM_CIGAR_SHIFT);
-//        }
-//
-//        memcpy(data + cur_mem_pos, cigar_full, cigar_len);
-//        cur_mem_pos+=cigar_len;
-//    }
+    join_seqs(reads,data,cur_mem_pos,total_seq_len);
 
-    // iteratively add sequence pieces to the new record
-    bool merge_last_first = false; // if set notifies that first 4 bytes of the last byte of previous sequence need to be combined accordingly with the first 4 bytes of the current sequence before copying the rest
-    int frag_offset = 0; // in case the first base was shifted - this indicates that the shifting needs to occur
-    bool first = true;
-    bam1_t *rec;
-    bam1_t *prev_rec;
-    for(int i=0;i<reads.size();i++){
-        rec = bam_dup1(reads[i]);
-        int seq_len = rec->core.l_qseq;
-
-        int num_bytes = (seq_len+1)/2;
-        uint8_t seq_ar[num_bytes];
-        memcpy(seq_ar,bam_get_seq(rec),num_bytes);
-        uint8_t *seq = seq_ar;
-
-        if(first){ // simply write the sequence since this is the first record
-            memcpy(data+cur_mem_pos,seq_ar,num_bytes);
-            cur_mem_pos+=num_bytes;
-            first = false;
-        }
-        else{ // here we need to check the bases that are not written
-            if(merge_last_first){
-                uint8_t byte_ar[1];
-                memcpy(byte_ar,data+cur_mem_pos-1,1); // copy the last byte over which will contain the orphan bit
-
-                uint8_t *byte = byte_ar;
-                *byte = (*(byte)&0xF0) | (*(seq)&0xF0)>>4;
-                memcpy(data+cur_mem_pos-1,byte_ar,1);
-
-//                seq++;
-                while (seq < seq_ar+num_bytes-1) {
-                    *seq = (*(seq)&0x0F)<<4 | (*(seq+1)&0xF0)>>4; // 0000 1111 - 1111 0000
-                    seq++;
-                }
-                *seq = (*(seq)&0x0F)<<4; // 0000 1111
-                seq=seq_ar;
-//                seq++;
-                if(seq_len%2==1){
-                    memcpy(data+cur_mem_pos,seq,num_bytes-1);
-                    cur_mem_pos+=num_bytes-1;
-                }
-                else{
-                    memcpy(data+cur_mem_pos,seq,num_bytes);
-                    cur_mem_pos+=num_bytes;
-                }
-            }
-            else{
-                memcpy(data+cur_mem_pos,seq_ar,num_bytes);
-                cur_mem_pos+=num_bytes;
-            }
-        }
-        if(seq_len%2==1){
-            merge_last_first=!merge_last_first;
-        }
-    }
-
-    for(auto& rec : reads){
-        memcpy(data+cur_mem_pos,bam_get_qual(rec),rec->core.l_qseq);
-        cur_mem_pos+=rec->core.l_qseq;
-    }
+    // TODO: need to take care of the quality strings and move them to the tags in case of insertions as well - should be fairly simple
+    join_quals(reads,data,cur_mem_pos,total_seq_len);
+//    cur_mem_pos+=total_seq_len;
 
     // lastly copy over the auxilary data
-    int copied_len = name_len + (rec->core.n_cigar * 4) + ((rec->core.l_qseq+1)/2) + rec->core.l_qseq;
-    int remain_len = rec->l_data - copied_len;
-    memcpy(data+cur_mem_pos,rec->data+copied_len,remain_len);
+//    remove_aux_tags(reads.front());
+    int copied_len = name_len + (reads.front()->core.n_cigar * 4) + ((reads.front()->core.l_qseq+1)/2) + reads.front()->core.l_qseq;
+    int remain_len = reads.front()->l_data - copied_len;
+    memcpy(data+cur_mem_pos,reads.front()->data+copied_len,remain_len);
 
     new_rec->core.n_cigar = (new_n_cigar_bytes/4);
     new_rec->core.l_qseq = total_seq_len;
@@ -1207,12 +1396,12 @@ void MSA::joinReads(std::vector<bam1_t*>& reads,samFile *outSAM_joined,bam_hdr_t
     new_rec->l_data = data_len;
     new_rec->m_data = m_data;
 
-    if(std::strcmp(bam_get_qname(new_rec),"KF234628_259_409_0:0:0_0:0:0_5a9/1")==0){
-        std::cout<<"found wrong cigar"<<std::endl;
-        print_cigar(new_rec);
+//    if(std::strcmp(bam_get_qname(new_rec),"KF234628_609_759_0:0:1_0:1:1_6dc/1")==0){
+        std::cout<<bam_get_qname(new_rec)<<std::endl;
         print_seq(new_rec);
-        std::cout<<new_n_cigar_bytes<<std::endl;
-    }
+        print_qual(new_rec);
+        print_cigar(new_rec);
+//    }
 
     int ret = sam_write1(outSAM_joined,outSAM_joined_header,new_rec);
     return;
@@ -1280,12 +1469,7 @@ void MSA::realign(std::string in_sam,std::string out_sam){
 
 //    this->clean();
 
-    int c = 0;
     while(sam_read1(in_al, in_al_hdr, in_rec) >= 0) {
-//        if(c==10){
-//            break;
-//        }
-//        c++;
         parse_read(in_rec,in_al_hdr,outSAM_clean,outSAM_clean_header);
     }
 
@@ -1297,14 +1481,14 @@ void MSA::realign(std::string in_sam,std::string out_sam){
     sam_close(in_al);
     sam_close(outSAM_clean);
     std::cerr<<"@LOG::::Done cleaning graph"<<std::endl;
-//
+
     std::cerr<<"@LOG::::Begin sorting disjoint alignments by name"<<std::endl;
 
     sam_sort_cmd = "samtools sort -n -o "+out_sam+".sorted_name.bam "+out_sam+".clean";
     res_sam_sort = system(sam_sort_cmd.c_str());
 
     std::cerr<<"@LOG::::Done sorting disjoint alignments by name"<<std::endl;
-
+//
     std::cerr<<"@LOG::::Begin joining reads"<<std::endl;
 
     std::string out_sam_joined = out_sam+".joined";
