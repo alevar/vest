@@ -75,8 +75,6 @@ private:
 
     // related to updating the vector of removed vertices
     std::vector<int> removed; // TODO: simple vector for now - needs to be replaced by a more robust solution
-    std::vector<std::map<int,int>> refids_counts; // for each position within the graph stores the set of references at that position and the number of reads that were mapped to the graph through that reference
-    std::pair<std::map<int,int>::iterator,bool> rcit; // iterator for the refids_counts
 
     int farthestEnd=0; // the value is set to the last position that was processed so far.
                         // Since reads are sorted with respect to the MSA, any nades prior to this value

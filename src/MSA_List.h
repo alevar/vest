@@ -19,9 +19,9 @@ inline void hash_combine(std::size_t& seed, std::size_t v){
 struct MSA_Vertex_Contents_Hasher{ // based on the contents of the vertex
     std::size_t operator()(const MSA_Vertex& mv) const{
         std::size_t hash = 0;
-        for (std::pair<std::string,uint32_t> i : mv){
-            for (int i2=0;i2<i.first.size();i2++) {
-                hash_combine(hash, (uint8_t)i.first[i2]);
+        for (std::tuple<std::string,uint32_t,uint16_t> i : mv){
+            for (int i2=0;i2<std::get<0>(i).size();i2++) {
+                hash_combine(hash, (uint8_t)std::get<0>(i)[i2]);
             }
         }
         return hash;

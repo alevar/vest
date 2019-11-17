@@ -20,20 +20,20 @@ public:
     };
     explicit MSA_Vertex(int num_ref, int pos){
         this->empty = false;
-        this->contents = std::vector<std::pair<std::string,uint32_t>>(num_ref,std::make_pair("",0));
+        this->contents = std::vector<std::tuple<std::string,uint32_t,uint16_t>>(num_ref,std::make_tuple("",0,0));
         this->pos = pos;
     };
     ~MSA_Vertex() = default;
 
     void add_snp(std::string nt, uint16_t ref){
-        this->contents[ref].first += nt;
+        std::get<0>(this->contents[ref]) += nt;
     }
 
     void add_edge(uint32_t next,uint16_t ref){
-        this->contents[ref].second = next;
+        std::get<1>(this->contents[ref]) = next;
     }
 
-    std::vector<std::pair<std::string,uint32_t>> get_contents() const {
+    std::vector<std::tuple<std::string,uint32_t,uint16_t>> get_contents() const {
         return this->contents;
     }
 
@@ -42,16 +42,16 @@ public:
     }
 
     std::string get_nt(uint16_t ref_id) const {
-        return this->contents[ref_id].first;
+        return std::get<0>(this->contents[ref_id]);
     }
 
     bool isEmpty(){
         return this->empty;
     }
 
-    typedef std::vector<std::pair<std::string,uint32_t> >::iterator iterator;
-    typedef std::vector<std::pair<std::string,uint32_t>>::const_iterator const_iterator;
-    typedef std::vector<std::pair<std::string,uint32_t>>::reference reference;
+    typedef std::vector<std::tuple<std::string,uint32_t,uint16_t> >::iterator iterator;
+    typedef std::vector<std::tuple<std::string,uint32_t,uint16_t>>::const_iterator const_iterator;
+    typedef std::vector<std::tuple<std::string,uint32_t,uint16_t>>::reference reference;
     iterator begin() {return contents.begin();}
     const_iterator begin() const { return contents.begin();}
     iterator end() {return contents.end();}
@@ -65,13 +65,13 @@ public:
         out_fp << this->pos << "\t";
 
         for(int i=0;i<this->contents.size();i++){
-            if(!this->contents[i].first.empty()){ // only store those that are not empty
-                out_fp << i << ":" << this->contents[i].first<<";";
-                if(this->contents[i].second == 0){
+            if(!std::get<0>(this->contents[i]).empty()){ // only store those that are not empty
+                out_fp << i << ":" << std::get<0>(this->contents[i])<<";";
+                if(std::get<1>(this->contents[i]) == 0){
                     out_fp << "0";
                 }
                 else{
-                    out_fp << this->contents[i].second;
+                    out_fp << std::get<1>(this->contents[i]);
                 }
                 if(i < this->contents.size()){
                     out_fp << "\t";
@@ -88,8 +88,8 @@ public:
     void get_nt_string(std::string& res){
         std::set<char> res_nts;
         for(auto& v : this->contents){
-            if(!v.first.empty()){
-                for(auto &n : v.first) {
+            if(!std::get<0>(v).empty()){
+                for(auto &n : std::get<0>(v)) {
                     res_nts.insert(n);
                 }
             }
@@ -99,30 +99,41 @@ public:
         }
     }
 
-    // TODO: add information about supporting references directly to the vertices.
-    //    As long as we still iterate at some point over all vertices that belong to a given read - we can populate each required vertex, thus making the final graph a lot easier to interpret due to fewer ambiguous bases
+    void get_most_abundant_refID(int& refID){
+        int count=0;
+        int refid=0;
+        for(auto& rid : this->contents){
+            if(count<std::get<2>(rid)){
+                count=std::get<2>(rid);
+                refID=std::get<1>(rid);
+            }
+        }
+    }
 
-    void get_supported_nt_string(std::string& res,std::map<int,int>& rcs){ // uses the refid_counts in order to select the most abundant bases only
-        if(rcs.empty()){
+    bool is_mapped(){return this->mapped;}
+
+    bool set_mapped(){this->mapped=true;}
+
+    void get_supported_nt_string(std::string& res){
+        if(!is_mapped()){
             get_nt_string(res);
         }
         else {
             // get the most abundant references first
             int max_abund = 0;
-            for (auto &rc : rcs) {
-                if (rc.second > max_abund) {
-                    max_abund = rc.second;
-                }
-            }
             std::set<char> res_nts;
-            std::pair<std::string, uint32_t> ref_base;
-            for (auto &rc : rcs) {
-                if (rc.second == max_abund) {
-                    ref_base = this->contents[rc.first];
-                    if (!ref_base.first.empty()) {
-                        for (auto &n : ref_base.first) {
+            for (auto &rc : this->contents) {
+                if (std::get<2>(rc) > max_abund) {
+                    max_abund = std::get<2>(rc);
+                    res_nts.clear();
+                    if (!std::get<0>(rc).empty()) {
+                        for (auto &n : std::get<0>(rc)) {
                             res_nts.insert(n);
                         }
+                    }
+                    else{
+                        std::cerr<<"reference sequence not found"<<std::endl;
+                        exit(-1);
                     }
                 }
             }
@@ -135,8 +146,8 @@ public:
     void get_next_vts(std::vector<int>& next_vts){
         std::set<int> res_vts;
         for(auto& v : this->contents){
-            if(!v.first.empty()){
-                res_vts.insert(v.second);
+            if(!std::get<0>(v).empty()){
+                res_vts.insert(std::get<1>(v));
             }
         }
         for(auto& v : res_vts){
@@ -145,7 +156,11 @@ public:
     }
 
     int get_next_pos4ref(int refID){
-        return contents[refID].second;
+        return std::get<1>(contents[refID]);
+    }
+
+    void inc_ref(int refID){
+        std::get<2>(contents[refID])++;
     }
 
 private:
@@ -193,9 +208,10 @@ private:
     // to be used during the realignment
     uint8_t nts[4]={0,0,0,0};
 
-    std::vector<std::pair<std::string,uint32_t> > contents = {}; // vector of nucleotides, where nucleotide is kept at the position of the reference id. each position also stores the index of the next vertex in case there exists an edge
+    std::vector<std::tuple<std::string,uint32_t,uint16_t> > contents = {}; // vector of nucleotides, where nucleotide is kept at the position of the reference id. each position also stores the index of the next vertex in case there exists an edge. The last element keeps count of the number of times the reference is confirmed
     uint32_t pos = 0; // position of the vertex in the MSA
     bool empty = true;
+    bool mapped = false;
 };
 
 #endif //VEST_MSA_VERTEX_H

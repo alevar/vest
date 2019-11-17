@@ -1331,7 +1331,6 @@ void MSA::realign(std::string in_sam,std::string out_sam){
             int refID = this->graph.get_id(ref_name); // reference ID of the read
             int new_end = this->graph.get_new_position(refID,bam_endpos(in_rec));
             int new_start = this->graph.get_new_position(refID,in_rec->core.pos);
-            this->graph.add2refcount(new_start,refID);
             add_orig_ref_tags(in_rec,refID,new_end);
             in_rec->core.pos = new_start;
             in_rec->core.tid = 0;
@@ -1365,7 +1364,9 @@ void MSA::realign(std::string in_sam,std::string out_sam){
     in_al_hdr->ignore_sam_err=1;
     in_rec = bam_init1(); //initialize an alignment
 
-//    this->clean();
+//    this->clean(); // TODO: clean after parsing and then perform last correction after when joining
+//                         this can be achieved by creating another vector to keep track of the vertices removed during the cleanup
+//                         the modifications should not disturb the actual alignments
 
     while(sam_read1(in_al, in_al_hdr, in_rec) >= 0) {
         parse_read(in_rec,in_al_hdr,outSAM_clean,outSAM_clean_header);

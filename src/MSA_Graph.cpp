@@ -76,13 +76,6 @@ int MSA_Graph::get_new_position(int refID, int pos) {
     return this->index.getNewPos(refID,pos);
 }
 
-void MSA_Graph::add2refcount(int pos,int refID){
-    this->rcit = this->refids_counts[pos].insert(std::make_pair(refID,1));
-    if(!this->rcit.second){
-        this->rcit.first++;
-    }
-}
-
 void MSA_Graph::save_index(std::ofstream& out_fp) {
     this->index.save(out_fp);
 }
@@ -127,8 +120,8 @@ void MSA_Graph::save_merged_fasta(std::string& out_fp){
         if(this->removed[i]==0){
             std::string nt_str = "";
             mv = this->vertices.get(i);
-            mv->get_nt_string(nt_str);
-//            mv->get_supported_nt_string(nt_str,this->refids_counts[i]);
+//            mv->get_nt_string(nt_str);
+            mv->get_supported_nt_string(nt_str);
             iupac_nt = this->IUPAC[nt_str];
             merged_fp<<iupac_nt;
             nt_str.clear();
@@ -198,6 +191,8 @@ void MSA_Graph::fit_read(int refID,int ref_start,int end,int& new_start, int& s,
     while(true){
         cur_vID = start;
         v = this->vertices.get(cur_vID);
+        v->inc_ref(refID);
+        v->set_mapped();
         next_vID = v->get_next_pos4ref(refID);
         if(cur_vID != next_vID){
             int tmp_pos = pos_tracker;
@@ -262,20 +257,13 @@ void MSA_Graph::set_removed(int start, int end){
 }
 
 void MSA_Graph::get_most_abundant_refID(int pos,int&refID){
-    int count=0;
-    int refid=0;
-    for(auto& rid : this->refids_counts[pos]){
-        if(count<rid.second){
-            count=rid.second;
-            refID=rid.first;
-        }
-    }
+    this->vertices.get(pos)->get_most_abundant_refID(refID);
     return;
 }
 
 void MSA_Graph::get_first_mapped_pos(int& pos,int& refID){
-    for(int i=0;i<this->refids_counts.size();i++){
-        if(!this->refids_counts[i].empty()){
+    for(int i=0;i<this->vertices.size();i++){
+        if(this->vertices.get(i)->is_mapped()){
             // get the most abundant reference at the position. if two equally good exist - return the first one
             pos = i;
             get_most_abundant_refID(pos,refID);
@@ -285,8 +273,8 @@ void MSA_Graph::get_first_mapped_pos(int& pos,int& refID){
 }
 
 void MSA_Graph::get_last_mapped_pos(int& pos,int& refID){
-    for(int i=refids_counts.size()-1;i>0;i--){
-        if(!this->refids_counts[i].empty()){
+    for(int i=this->vertices.size()-1;i>0;i--){
+        if(this->vertices.get(i)->is_mapped()){
             // get the most abundant reference at the position. if two equally good exist - return the first one
             pos = i;
             get_most_abundant_refID(pos,refID);
@@ -358,5 +346,4 @@ void MSA_Graph::init_refcouts(){
         std::cerr<<"empty graph"<<std::endl;
         std::exit(-1);
     }
-    this->refids_counts = std::vector<std::map<int,int>>(this->length,std::map<int,int>{});
 }
