@@ -159,14 +159,15 @@ void MSA_Graph::find_location(int refID, int ref_start, int end, int& new_start,
         return;
     }
     else{
+        new_start = ref_start-sum_removed;
         int next_pos = ref_start;
         s=0;
         while(next_pos < end){
             next_pos = this->vertices.get(next_pos)->get_next_pos4ref(refID);
             s++;
             if(!removed[next_pos]){
-                sum_removed = std::accumulate(this->removed.begin(),this->removed.begin()+next_pos,0);
-                new_start =  next_pos - sum_removed;
+//                sum_removed = std::accumulate(this->removed.begin(),this->removed.begin()+next_pos,0);
+//                new_start =  next_pos - sum_removed;
                 return;
             }
         }
@@ -175,7 +176,7 @@ void MSA_Graph::find_location(int refID, int ref_start, int end, int& new_start,
     }
 }
 
-void MSA_Graph::fit_read(int refID,int ref_start,int end,int& new_start, int& s, std::vector<int>& not_removed, std::vector<int>& added){ // the last four parameters are the return
+void MSA_Graph::fit_read2(int refID,int ref_start,int end,int& new_start, int& s, std::vector<int>& not_removed, std::vector<int>& added){ // the last four parameters are the return
     s=0;
     this->find_location(refID,ref_start,end,new_start,s);
     if(s>0){
@@ -190,10 +191,18 @@ void MSA_Graph::fit_read(int refID,int ref_start,int end,int& new_start, int& s,
 
     while(true){
         cur_vID = start;
+        if(cur_vID==10975){
+            std::cout<<"found removed"<<std::endl;
+        }
         v = this->vertices.get(cur_vID);
-        v->inc_ref(refID);
-        v->set_mapped();
         next_vID = v->get_next_pos4ref(refID);
+        if(this->removed[cur_vID]==0){
+            v->inc_ref(refID);
+            v->set_mapped();
+        }
+//        if(this->removed[cur_vID]==0 && this->vertices.get(cur_vID)->is_mapped()){
+//            not_removed.push_back(pos_tracker);
+//        }
         if(cur_vID != next_vID){
             int tmp_pos = pos_tracker;
             for(int i=cur_vID+1;i<next_vID;i++){
@@ -201,7 +210,7 @@ void MSA_Graph::fit_read(int refID,int ref_start,int end,int& new_start, int& s,
                     to_remove.push_back(i);
                 }
                 else{
-                    if(this->removed[i]==0){
+                    if(this->removed[i]==0 && this->vertices.get(i)->is_mapped()){
                         not_removed.push_back(tmp_pos);
                     }
                 }
@@ -230,6 +239,52 @@ void MSA_Graph::fit_read(int refID,int ref_start,int end,int& new_start, int& s,
     this->memo_refID = refID;
     if(end>this->farthestEnd){
         farthestEnd = end;
+    }
+}
+
+void MSA_Graph::fit_read(int refID,int ref_start,int end,int& new_start, int& s, std::vector<int>& not_removed, std::vector<int>& added){ // the last four parameters are the return
+    s=0;
+    this->find_location(refID,ref_start,end,new_start,s);
+    if(s>0){
+        for(int i=0;i<s;i++){
+            added.emplace_back(i);
+        }
+    }
+    std::vector<int> to_remove;
+    int pos_tracker = 0,next_vID=ref_start,cur_vID;
+    MSA_Vertex* v,next_v;
+
+    while(true){
+        cur_vID = next_vID;
+        v = this->vertices.get(cur_vID);
+        next_vID = v->get_next_pos4ref(refID);
+        if(this->removed[cur_vID]==1){ // current positions has been removed - causes insertion
+            added.emplace_back(pos_tracker);
+        }
+        else{
+            v->inc_ref(refID);
+            v->set_mapped();
+        }
+        int tmp_pos = pos_tracker;
+        for(int i=cur_vID+1;i<next_vID;i++){
+            if(this->removed[i]==0 && this->vertices.get(i)->is_mapped()){ // can not be removed - causes deletion
+                not_removed.emplace_back(tmp_pos);
+                tmp_pos++;
+            }
+            else{
+                to_remove.emplace_back(i);
+            }
+        }
+
+        if(next_vID>=end){
+            break;
+        }
+        pos_tracker++;
+    }
+    if(to_remove.size()>0){
+        for(auto& vid : to_remove){
+            this->removed[vid]=1;
+        }
     }
 }
 

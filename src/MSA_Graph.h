@@ -50,6 +50,7 @@ public:
     void save_graph2dot(std::ofstream &out_fp); // save vertices as a dot file
     void save_merged_fasta(std::string& out_fp);
 
+    void fit_read2(int refID,int ref_start,int end,int& newStart, int& s, std::vector<int>& not_removed, std::vector<int>& added);
     void fit_read(int refID,int ref_start,int end,int& newStart, int& s, std::vector<int>& not_removed, std::vector<int>& added);
     void find_location(int refID, int ref_start, int end, int& new_start, int& s);
 

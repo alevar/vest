@@ -753,6 +753,7 @@ void MSA::change_cigar(bam1_t* in_rec,int s){
 }
 
 void MSA::l2range(std::vector<int>& l,std::vector<std::pair<int,int>>& r){
+    std::sort(l.begin(),l.end());
     r.emplace_back(std::make_pair(l.front(),l.front()));
     bool new_entry = false;
     for(int i=0;i<l.size();i++){
@@ -880,7 +881,7 @@ void MSA::create_ins(bam1_t* in_rec,std::vector<std::pair<int,int>>& added){
         bool was_set=false;
         bool ins_created=false;
         bool skip_post=false;
-        while(cur_read_pos>=added[nr_idx].first && nr_idx!=added.size()){ // add all the not_removed bases as relevant deletions
+        while(cur_read_pos>added[nr_idx].first && nr_idx!=added.size()){ // add all the not_removed bases as relevant deletions
             was_set=true;
             skip_post=false;
             pre_len = length - ((cur_read_pos-added[nr_idx].first)+cum_pre_len);
@@ -895,7 +896,7 @@ void MSA::create_ins(bam1_t* in_rec,std::vector<std::pair<int,int>>& added){
             nr_len = (added[nr_idx].second-added[nr_idx].first)+1;
             cum_pre_len+=nr_len;
             // since insertions advance position on the read we need to make sure the modification will not step over the bounds of the read and adjust accordingly
-            if(pre_len+nr_len>=length){
+            if(pre_len+nr_len>length){
                 nr_len = nr_len - ((pre_len+nr_len)-length);
                 skip_post = true;
             }
@@ -918,7 +919,7 @@ void MSA::create_ins(bam1_t* in_rec,std::vector<std::pair<int,int>>& added){
             break;
         }
         else{
-            if(cur_read_pos<added[nr_idx].first){
+            if(cur_read_pos<=added[nr_idx].first){
                 cigars[num_cigars]=opcode|(length<<BAM_CIGAR_SHIFT);
                 ++num_cigars;
             }
@@ -941,6 +942,10 @@ void MSA::parse_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr
     int new_start,s;
     std::vector<int> not_removed_tmp,added_tmp;
     std::vector<std::pair<int,int>> not_removed,added;
+
+    if(std::strcmp(bam_get_qname(in_rec),"KF234628_1168_1318_0:0:0_0:1:0_a0c/1")==0){
+        std::cout<<"found"<<std::endl;
+    }
 
     this->graph.fit_read(tag_refID,in_rec_ref_start,tag_ref_end,new_start,s,not_removed_tmp,added_tmp);
     in_rec_ref_start = new_start;
