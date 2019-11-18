@@ -943,10 +943,6 @@ void MSA::parse_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr
     std::vector<int> not_removed_tmp,added_tmp;
     std::vector<std::pair<int,int>> not_removed,added;
 
-    if(std::strcmp(bam_get_qname(in_rec),"KF234628_1168_1318_0:0:0_0:1:0_a0c/1")==0){
-        std::cout<<"found"<<std::endl;
-    }
-
     this->graph.fit_read(tag_refID,in_rec_ref_start,tag_ref_end,new_start,s,not_removed_tmp,added_tmp);
     in_rec_ref_start = new_start;
 
@@ -1441,7 +1437,7 @@ void MSA::realign(std::string in_sam,std::string out_sam){
 void MSA::fit_annotation(std::string in_gff, std::string out_gff){
     std::cerr<<"@LOG::::Begin fitting annotation"<<std::endl;
     this->graph.fit_annotation(in_gff,out_gff);
-    std::cerr<<"@LOG::""Done loading annotation"<<std::endl;
+    std::cerr<<"@LOG::""Done fitting annotation"<<std::endl;
     return;
 }
 

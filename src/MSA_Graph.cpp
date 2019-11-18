@@ -290,6 +290,7 @@ void MSA_Graph::fit_read(int refID,int ref_start,int end,int& new_start, int& s,
 
 int MSA_Graph::get_gff_pos(int refID,int pos){
     int ref_start = get_new_position(refID,pos);
+
     int sum_removed = std::accumulate(this->removed.begin(), this->removed.begin()+ref_start, 0);
     if(removed[ref_start]){
         std::cerr<<"position has been removed but is still being reported"<<std::endl;
@@ -378,11 +379,14 @@ void MSA_Graph::fit_annotation(std::string in_gff_fname,std::string out_gff_fnam
         std::getline(ss, phase, '\t');
         std::getline(ss, attrs, '\t');
 
-        out_gff_fp<<ref_name<<"\t"
+        int new_start = this->get_gff_pos(refID,std::atoi(start_s.c_str())-1);
+        int new_end = this->get_gff_pos(refID,std::atoi(end_s.c_str())-1);
+
+        out_gff_fp<<"MSA"<<"\t"
                   <<track<<"\t"
                   <<feature<<"\t"
-                  <<this->get_gff_pos(refID,std::atoi(start_s.c_str()))<<"\t"
-                  <<this->get_gff_pos(refID,std::atoi(end_s.c_str()))<<"\t"
+                  <<new_start<<"\t"
+                  <<new_end<<"\t"
                   <<score<<"\t"
                   <<strand<<"\t"
                   <<phase<<"\t"
