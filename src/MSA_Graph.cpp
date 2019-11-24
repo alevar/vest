@@ -120,8 +120,8 @@ void MSA_Graph::save_merged_fasta(std::string& out_fp){
         if(this->removed[i]==0){
             std::string nt_str = "";
             mv = this->vertices.get(i);
-//            mv->get_nt_string(nt_str);
-            mv->get_supported_nt_string(nt_str);
+            mv->get_nt_string(nt_str);
+//            mv->get_supported_nt_string(nt_str);
             iupac_nt = this->IUPAC[nt_str];
             merged_fp<<iupac_nt;
             nt_str.clear();
@@ -242,12 +242,12 @@ void MSA_Graph::fit_read2(int refID,int ref_start,int end,int& new_start, int& s
     }
 }
 
-void MSA_Graph::fit_read(int refID,int ref_start,int end,int& new_start, int& s, std::vector<int>& not_removed, std::vector<int>& added){ // the last four parameters are the return
+void MSA_Graph::fit_read(int refID,int ref_start,int end,int& new_start, int& s, std::vector<int>& not_removed, std::unordered_set<int>& added){ // the last four parameters are the return
     s=0;
     this->find_location(refID,ref_start,end,new_start,s);
     if(s>0){
         for(int i=0;i<s;i++){
-            added.emplace_back(i);
+            added.insert(i);
         }
     }
     std::vector<int> to_remove;
@@ -259,7 +259,7 @@ void MSA_Graph::fit_read(int refID,int ref_start,int end,int& new_start, int& s,
         v = this->vertices.get(cur_vID);
         next_vID = v->get_next_pos4ref(refID);
         if(this->removed[cur_vID]==1){ // current positions has been removed - causes insertion
-            added.emplace_back(pos_tracker);
+            added.insert(pos_tracker);
         }
         else{
             v->inc_ref(refID);

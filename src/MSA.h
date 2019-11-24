@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <map>
+#include <unordered_set>
 
 #include <htslib/sam.h>
 
@@ -77,7 +78,8 @@ private:
     void l2range(std::vector<int>& l,std::vector<std::pair<int,int>>& r);
     void add_cigar(bam1_t *curAl,int num_cigars,int* cigars);
     void create_del(bam1_t* in_rec,std::vector<std::pair<int,int>>& not_removed);
-    void create_ins(bam1_t* in_rec,std::vector<std::pair<int,int>>& added);
+    void create_ins_old(bam1_t* in_rec,std::vector<std::pair<int,int>>& added);
+    void create_ins(bam1_t* in_rec,std::unordered_set<int>& added);
 
     void parse_msa();
     void save_graph_info(std::string out_base);

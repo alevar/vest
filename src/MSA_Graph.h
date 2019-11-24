@@ -13,6 +13,7 @@
 #include <fstream>
 #include <sstream>
 #include <map>
+#include <unordered_set>
 
 #include "MSA_Vertex.h"
 #include "MSA_Edge.h"
@@ -51,7 +52,7 @@ public:
     void save_merged_fasta(std::string& out_fp);
 
     void fit_read2(int refID,int ref_start,int end,int& newStart, int& s, std::vector<int>& not_removed, std::vector<int>& added);
-    void fit_read(int refID,int ref_start,int end,int& newStart, int& s, std::vector<int>& not_removed, std::vector<int>& added);
+    void fit_read(int refID,int ref_start,int end,int& newStart, int& s, std::vector<int>& not_removed, std::unordered_set<int>& added);
     void find_location(int refID, int ref_start, int end, int& new_start, int& s);
 
     void fit_annotation(std::string in_gff,std::string out_gff);

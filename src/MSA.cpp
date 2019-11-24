@@ -818,29 +818,33 @@ void MSA::create_del(bam1_t* in_rec,std::vector<std::pair<int,int>>& not_removed
 
 //    int cur_ref_pos=in_rec->core.pos; // same as cur_pos but includes the soft clipping bases
     int cur_read_pos=0;
+    int cur_added_pos=0; // tracks the numbe rof bases which have already been moved from the old cigar into the new one
     for (uint8_t c=0;c<in_rec->core.n_cigar;++c){
         uint32_t *cigar_full=bam_get_cigar(in_rec);
         int opcode=bam_cigar_op(cigar_full[c]);
         int length=bam_cigar_oplen(cigar_full[c]);
 
-        if(opcode==BAM_CSOFT_CLIP || opcode==BAM_CMATCH || opcode==BAM_CREF_SKIP || opcode==BAM_CDEL){
-                // consumes both reference and query
+        if(opcode==BAM_CSOFT_CLIP || opcode==BAM_CMATCH || opcode==BAM_CINS){
                 cur_read_pos+=length;
         }
         int pre_len=0,post_len=0;
         bool was_set=false;
-        while(cur_read_pos>=not_removed[nr_idx].first && nr_idx!=not_removed.size()){ // add all the not_removed bases as relevant deletions
+        while(cur_read_pos>not_removed[nr_idx].first && nr_idx!=not_removed.size()){ // add all the not_removed bases as relevant deletions
             was_set=true;
-            pre_len = length - (cur_read_pos-not_removed[nr_idx].first);
-            post_len = length - pre_len;
+            pre_len = length - (cur_read_pos-not_removed[nr_idx].first)-cur_added_pos;
+            post_len = length - pre_len - cur_added_pos;
             cigars[num_cigars]=opcode|(pre_len<<BAM_CIGAR_SHIFT);
             ++num_cigars;
+            if(opcode==BAM_CSOFT_CLIP || opcode==BAM_CMATCH || opcode==BAM_CINS){
+                // consumes both reference and query
+                cur_added_pos+=pre_len;
+            }
 
             int nr_len = (not_removed[nr_idx].second-not_removed[nr_idx].first)+1;
             cigars[num_cigars]=BAM_CDEL|(nr_len<<BAM_CIGAR_SHIFT);
             ++num_cigars;
 
-            cur_read_pos+=nr_len;
+//            cur_read_pos+=nr_len;
 
             nr_idx++;
         }
@@ -850,7 +854,7 @@ void MSA::create_del(bam1_t* in_rec,std::vector<std::pair<int,int>>& not_removed
             was_set=false;
         }
         else{
-            if(cur_read_pos<not_removed[nr_idx].first){
+            if(cur_read_pos<=not_removed[nr_idx].first){
                 cigars[num_cigars]=opcode|(length<<BAM_CIGAR_SHIFT);
                 ++num_cigars;
             }
@@ -861,7 +865,7 @@ void MSA::create_del(bam1_t* in_rec,std::vector<std::pair<int,int>>& not_removed
     return;
 }
 
-void MSA::create_ins(bam1_t* in_rec,std::vector<std::pair<int,int>>& added){
+void MSA::create_ins_old(bam1_t* in_rec,std::vector<std::pair<int,int>>& added){
     int cigars[MAX_CIGARS];
     int num_cigars=0;
 
@@ -869,11 +873,12 @@ void MSA::create_ins(bam1_t* in_rec,std::vector<std::pair<int,int>>& added){
     int cur_read_pos=0; // delayed value does never advances ahead
     int last_read_pos = 0; // the total number of bases in the cigar operations fully consumed thus far
     for (uint8_t c=0;c<in_rec->core.n_cigar;++c){
+//        if(std::strcmp(bam_get_qname(in_rec),"KF234628_7421_7571_0:0:0_0:0:0_78c/1")==0){std::cout<<"p1"<<std::endl;}
         uint32_t *cigar_full=bam_get_cigar(in_rec);
         int opcode=bam_cigar_op(cigar_full[c]);
         int length=bam_cigar_oplen(cigar_full[c]);
 
-        if(opcode==BAM_CSOFT_CLIP || opcode==BAM_CMATCH || opcode==BAM_CREF_SKIP || opcode==BAM_CINS){
+        if(opcode==BAM_CSOFT_CLIP || opcode==BAM_CMATCH || opcode==BAM_CINS){
             // consumes both reference and query
             cur_read_pos+=length;
         }
@@ -881,7 +886,8 @@ void MSA::create_ins(bam1_t* in_rec,std::vector<std::pair<int,int>>& added){
         bool was_set=false;
         bool ins_created=false;
         bool skip_post=false;
-        while(cur_read_pos>added[nr_idx].first && nr_idx!=added.size()){ // add all the not_removed bases as relevant deletions
+        while(cur_read_pos>=added[nr_idx].first && nr_idx!=added.size()){ // add all the not_removed bases as relevant deletions
+//            if(std::strcmp(bam_get_qname(in_rec),"KF234628_7421_7571_0:0:0_0:0:0_78c/1")==0){std::cout<<"p2"<<std::endl;}
             was_set=true;
             skip_post=false;
             pre_len = length - ((cur_read_pos-added[nr_idx].first)+cum_pre_len);
@@ -906,6 +912,7 @@ void MSA::create_ins(bam1_t* in_rec,std::vector<std::pair<int,int>>& added){
             nr_idx++;
         }
         if(was_set && !skip_post){
+//            if(std::strcmp(bam_get_qname(in_rec),"KF234628_7421_7571_0:0:0_0:0:0_78c/1")==0){std::cout<<"p3"<<std::endl;}
             if(ins_created){
                 post_len-=nr_len;
                 ins_created=false;
@@ -916,13 +923,61 @@ void MSA::create_ins(bam1_t* in_rec,std::vector<std::pair<int,int>>& added){
             was_set=false;
         }
         else if(skip_post){
+//            if(std::strcmp(bam_get_qname(in_rec),"KF234628_7421_7571_0:0:0_0:0:0_78c/1")==0){std::cout<<"p4"<<std::endl;}
             break;
         }
         else{
-            if(cur_read_pos<=added[nr_idx].first){
+            if(cur_read_pos<added[nr_idx].first){
+//                if(std::strcmp(bam_get_qname(in_rec),"KF234628_7421_7571_0:0:0_0:0:0_78c/1")==0){std::cout<<"p5"<<std::endl;}
                 cigars[num_cigars]=opcode|(length<<BAM_CIGAR_SHIFT);
                 ++num_cigars;
             }
+        }
+    }
+
+    add_cigar(in_rec,num_cigars,cigars);
+    return;
+}
+
+void MSA::create_ins(bam1_t* in_rec,std::unordered_set<int>& added){
+    int cigars[MAX_CIGARS];
+    int num_cigars=0;
+
+    std::vector<uint8_t> blown_up_cigars;
+
+    // first need to populate the blownup containers
+    uint32_t *cigar_full=bam_get_cigar(in_rec);
+    for (uint8_t c=0;c<in_rec->core.n_cigar;++c){
+        int opcode=bam_cigar_op(cigar_full[c]);
+        int length=bam_cigar_oplen(cigar_full[c]);
+        std::fill_n (std::back_inserter(blown_up_cigars), length, opcode);
+    }
+
+    int prev_op = -1; // previous operation
+    int ins_pos_inc=0; // for deletions and introns tells by how much the position needs to advance for insertions
+
+    int cur_len = 0; // length of the current operation
+
+    int op;
+    for(int i=0;i<blown_up_cigars.size();i++){
+        op = blown_up_cigars[i];
+        if(added.find(i-ins_pos_inc)!=added.end()){
+            if(op == BAM_CDEL || op == BAM_CREF_SKIP){
+                ins_pos_inc++;
+            }
+            else{
+                op = BAM_CINS;
+            }
+        }
+        if(op!=prev_op){
+            cur_len=1;
+            cigars[num_cigars]=op|(cur_len<<BAM_CIGAR_SHIFT);
+            ++num_cigars;
+            prev_op=op;
+        }
+        else{
+            cur_len++;
+            cigars[num_cigars-1]=op|(cur_len<<BAM_CIGAR_SHIFT);
         }
     }
 
@@ -940,8 +995,13 @@ void MSA::parse_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr
     int in_rec_ref_start = in_rec->core.pos;
 
     int new_start,s;
-    std::vector<int> not_removed_tmp,added_tmp;
+    std::vector<int> not_removed_tmp;
+    std::unordered_set<int> added_tmp;
     std::vector<std::pair<int,int>> not_removed,added;
+
+//    if(std::strcmp(bam_get_qname(in_rec),"KF234628_7421_7571_0:0:0_0:0:0_78c/1")==0){
+//        std::cout<<"found"<<std::endl;
+//    }
 
     this->graph.fit_read(tag_refID,in_rec_ref_start,tag_ref_end,new_start,s,not_removed_tmp,added_tmp);
     in_rec_ref_start = new_start;
@@ -955,13 +1015,22 @@ void MSA::parse_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr
             // instead of introducing a deletion into the actual cigar string - perhaps would make sense to simply split the read and record the type for later
             // how can we do this without having to repeat the same process for the reads that fall in here
             l2range(not_removed_tmp,not_removed);
+//            if(std::strcmp(bam_get_qname(in_rec),"KF234628_7421_7571_0:0:0_0:0:0_78c/1")==0){
+//                print_cigar(in_rec);
+//            }
             create_del(in_rec,not_removed);
+//            if(std::strcmp(bam_get_qname(in_rec),"KF234628_7421_7571_0:0:0_0:0:0_78c/1")==0){
+//                print_cigar(in_rec);
+//            }
         }
         if(added_tmp.size()>0){
             // instead of introducing a deletion into the actual cigar string - perhaps would make sense to simply split the read and record the type for later
-            l2range(added_tmp,added);
-            create_ins(in_rec,added);
+//            l2range(added_tmp,added);
+            create_ins(in_rec,added_tmp);
         }
+//        if(std::strcmp(bam_get_qname(in_rec),"KF234628_7421_7571_0:0:0_0:0:0_78c/1")==0){
+//            print_cigar(in_rec);
+//        }
         int ret_val = sam_write1(outSAM, outSAM_header, in_rec);
     }
 }
