@@ -57,12 +57,12 @@ public:
         return id_to_ref[id];
     }
 
-    void add(std::string& ref,uint32_t old_pos,uint32_t new_pos){
-        __add(getID(ref),old_pos,new_pos);
+    void add(std::string& ref,uint32_t new_pos){
+        __add(getID(ref),new_pos);
     }
 
-    void add(uint16_t id,uint32_t old_pos,uint32_t new_pos){
-        __add(id,old_pos,new_pos);
+    void add(uint16_t id,uint32_t new_pos){
+        __add(id,new_pos);
     }
 
     uint16_t getNewPos(uint16_t id, uint16_t old_pos){
@@ -106,7 +106,7 @@ private:
     std::pair<std::unordered_map<std::string,uint16_t>::iterator,bool> ri_it;
     std::pair<std::unordered_map<uint16_t,std::string>::iterator,bool> ir_it;
 
-    void __add(uint16_t id,uint32_t old_pos,uint32_t new_pos){
+    void __add(uint16_t id,uint32_t new_pos){
         if(pos_idx.size()<=id || pos_idx.empty()){
             pos_idx.resize(id+1);
             pos_idx[id] = std::vector<uint32_t>();

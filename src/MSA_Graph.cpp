@@ -28,8 +28,8 @@ void MSA_Graph::add_ref(std::string ref_name, int ref_id){
 }
 
 // this function sets a mapping between old and new positions in the refence/MSA
-void MSA_Graph::add_pos(uint16_t id, uint32_t old_pos, uint32_t new_pos) {
-    this->index.add(id,old_pos,new_pos);
+void MSA_Graph::add_pos(uint16_t id, uint32_t new_pos) {
+    this->index.add(id,new_pos);
 }
 
 // this function sets a snp for a given vertex

@@ -104,13 +104,11 @@ void MSA::parse_msa() {
 
         MSA_Vertex* last_mv; // last vertex for connecting edges
         bool unassigned_last = true;
-        uint32_t old_seq_idx = 0; // keeps track of the base position within the original reference sequence
 
         for (int i=0; i<cur_genome.seq_.size();i++){
             cur_nt = cur_genome.seq_[i];
             if(cur_nt != "-"){
-                this->graph.add_pos(cur_genome_id,old_seq_idx,i); // add old and new positions to the index
-                old_seq_idx++;
+                this->graph.add_pos(cur_genome_id,i); // add old and new positions to the index
                 for (auto cur_iupac_nt : this->IUPAC_REV[cur_nt]){
                     this->graph.add_snp(std::string(1,cur_iupac_nt),i,cur_genome_id);
 //                    std::cerr<<cur_nt<<"\t"<<std::string(1,cur_iupac_nt)<<std::endl;
@@ -375,10 +373,8 @@ void MSA::load_graph_contig_info(std::ifstream& stream) {
 
         std::stringstream pos_ss(positions);
         std::string pos;
-        int old_pos = 0;
         while (std::getline(pos_ss, pos, ',')) {
-            this->graph.add_pos(std::stoi(ref_id),old_pos,std::stoi(pos));
-            old_pos++;
+            this->graph.add_pos(std::stoi(ref_id),std::stoi(pos));
         }
     }
 }
@@ -638,7 +634,7 @@ void MSA::split_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr
             shift = change_data(new_rec,num_cigars,cigars,cur_local_start,cur_len,shift);
             new_rec->core.pos = cur_start;
             new_rec->core.l_qseq = cur_len;
-            new_end = this->graph.get_new_position(refID,bam_endpos(new_rec));
+            new_end = this->graph.get_new_position(refID,bam_endpos(new_rec)-1); // bam_end_pos returns the coordinate of first base after the alignment which is why we subtract 1 from the returned value
             new_start = this->graph.get_new_position(refID,new_rec->core.pos);
             add_orig_ref_tags(new_rec,refID,new_end);
             add_split_tags(new_rec,cur_slice,opcode,length);
@@ -679,7 +675,7 @@ void MSA::split_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr
     shift = change_data(new_rec,num_cigars,cigars,cur_local_start,cur_len,shift);
     new_rec->core.pos = cur_start;
     new_rec->core.l_qseq = cur_len;
-    new_end = this->graph.get_new_position(refID,bam_endpos(new_rec));
+    new_end = this->graph.get_new_position(refID,bam_endpos(new_rec)-1); // bam_end_pos returns the coordinate of first base after the alignment which is why we subtract 1 from the returned value
     new_start = this->graph.get_new_position(refID,new_rec->core.pos);
     add_orig_ref_tags(new_rec,refID,new_end);
     new_rec->core.pos = new_start;
@@ -999,7 +995,7 @@ void MSA::parse_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr
     std::unordered_set<int> added_tmp;
     std::vector<std::pair<int,int>> not_removed,added;
 
-//    if(std::strcmp(bam_get_qname(in_rec),"KF234628_7421_7571_0:0:0_0:0:0_78c/1")==0){
+//    if(std::strcmp(bam_get_qname(in_rec),"AF084936_9472_9622_0:1:0_0:1:0_e8a/1")==0){
 //        std::cout<<"found"<<std::endl;
 //    }
 
@@ -1399,7 +1395,7 @@ void MSA::realign(std::string in_sam,std::string out_sam){
         else{
             std::string ref_name = std::string(in_al_hdr->target_name[in_rec->core.tid]);
             int refID = this->graph.get_id(ref_name); // reference ID of the read
-            int new_end = this->graph.get_new_position(refID,bam_endpos(in_rec));
+            int new_end = this->graph.get_new_position(refID,bam_endpos(in_rec)-1);  // bam_end_pos returns the coordinate of first base after the alignment which is why we subtract 1 from the returned value
             int new_start = this->graph.get_new_position(refID,in_rec->core.pos);
             add_orig_ref_tags(in_rec,refID,new_end);
             in_rec->core.pos = new_start;
@@ -1439,6 +1435,7 @@ void MSA::realign(std::string in_sam,std::string out_sam){
 //                         the modifications should not disturb the actual alignments
 
     while(sam_read1(in_al, in_al_hdr, in_rec) >= 0) {
+//        std::cout<<bam_get_qname(in_rec)<<std::endl;
         parse_read(in_rec,in_al_hdr,outSAM_clean,outSAM_clean_header);
     }
 
