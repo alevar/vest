@@ -94,7 +94,8 @@ private:
     bool change_data(bam1_t *in_rec,int num_cigars,int* cigars,int cur_start,int cur_len,bool shift);
 
     void join_cigars_old(std::vector<bam1_t*>& reads,uint8_t *cigars,int& new_n_cigar_bytes);
-    void join_cigars(std::vector<bam1_t*>& reads,uint8_t *cigars,int& new_n_cigar_bytes);
+    void get_dist2next(bam1_t* rec,bam1_t* next,int opcode,int oplen);
+    void join_cigars(std::vector<bam1_t*>& reads,uint8_t *cigars,int& new_n_cigar_bytes,std::unordered_set<int>& added);
     void merge_seqs(uint8_t* data,uint8_t* seq,int seq_len,int& cur_mem_pos,bool orphan);
     void join_seqs(std::vector<bam1_t*>& reads,uint8_t* data,int& cur_mem_pos,int max_seq_len);
     void join_quals(std::vector<bam1_t*>& reads,uint8_t* data,int& cur_mem_pos,int max_seq_len);

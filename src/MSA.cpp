@@ -1112,8 +1112,32 @@ void MSA::get_split_op_tags(bam1_t* rec,int& opcode,int&oplen){
     }
 }
 
-void MSA::join_cigars(std::vector<bam1_t*>& reads,uint8_t *cigars,int& new_n_cigar_bytes){
+// compute what opcode and oplen are required to correctly join the two fragments
+void MSA::get_dist2next(bam1_t* rec,bam1_t* next,int opcode,int oplen){
+    oplen = next->core.pos - bam_endpos(rec);
+    if(oplen == 0){ // no insertions or deletions needed - can simply write as 0M
+        opcode = BAM_CMATCH;
+        return;
+    }
+    else if(oplen>0){
+        opcode = BAM_CDEL;
+        return;
+    }
+    else{ // inferred insertion
+        opcode = BAM_CINS;
+        oplen = 0-oplen; // taking the absolute
+        return;
+    }
+}
+
+void MSA::join_cigars(std::vector<bam1_t*>& reads,uint8_t *cigars,int& new_n_cigar_bytes,std::unordered_set<int>& added){
     int cur_mem_pos = 0;
+
+//    if(std::strcmp(bam_get_qname(reads[0]),"K03455_8848_8998_0:1:0_0:1:0_b0a/1")==0){
+//        std::cout<<"found"<<std::endl;
+//    }
+
+    int read_pos=0; // position on the read
 
     for(int i=0;i<reads.size();i++){
         bam1_t* rec = reads[i];
@@ -1132,15 +1156,24 @@ void MSA::join_cigars(std::vector<bam1_t*>& reads,uint8_t *cigars,int& new_n_cig
             bam1_t* next_read = reads[i+1];
             int next_start=next_read->core.pos;
             int cur_end=bam_endpos(rec);
-            int nd_len=next_start-(cur_end+1);
+            int nd_len=next_start-cur_end;
 
             // copy the cigar of the current slice
             memcpy(cigars + cur_mem_pos, cigar_full, cigar_len);
+            read_pos+=rec->core.l_qseq;
             cur_mem_pos+=cigar_len;
             new_n_cigar_bytes+=cigar_len;
 
+            if(nd_len<0){ // need to extend the insertion due to the overlap
+                // what if here we just remember positions to create insertions and deletions, and then introduce them using conventional algorithms used before this step when fitting the segments onto the graph?
+                for(int cp=(read_pos+nd_len);cp<read_pos;cp++){
+                    added.insert(cp);
+                }
+            }
+
             // create the insertion
             cigar_full[0] = BAM_CINS|(oplen<<BAM_CIGAR_SHIFT);
+            read_pos+=oplen;
             memcpy(cigars + cur_mem_pos, cigar_full, 4);
             cur_mem_pos+=4;
             new_n_cigar_bytes+=4;
@@ -1160,6 +1193,7 @@ void MSA::join_cigars(std::vector<bam1_t*>& reads,uint8_t *cigars,int& new_n_cig
 
             // copy the cigar of the current slice
             memcpy(cigars + cur_mem_pos, cigar_full, cigar_len);
+            read_pos+=rec->core.l_qseq;
             cur_mem_pos+=cigar_len;
             new_n_cigar_bytes+=cigar_len;
 
@@ -1326,7 +1360,8 @@ void MSA::joinReads(std::vector<bam1_t*>& reads,samFile *outSAM_joined,bam_hdr_t
 
     uint8_t* cigars = (uint8_t*)calloc(MAX_CIGARS,1);
 
-    join_cigars(reads,cigars,new_n_cigar_bytes);
+    std::unordered_set<int> added;
+    join_cigars(reads,cigars,new_n_cigar_bytes,added);
 
     bam1_t* new_rec = bam_dup1(reads.front());
 
@@ -1366,6 +1401,10 @@ void MSA::joinReads(std::vector<bam1_t*>& reads,samFile *outSAM_joined,bam_hdr_t
     new_rec->m_data = m_data;
 
     remove_aux_tags(new_rec);
+
+    if(!added.empty()){
+        create_ins(new_rec,added);
+    }
 
     int ret = sam_write1(outSAM_joined,outSAM_joined_header,new_rec);
     return;
