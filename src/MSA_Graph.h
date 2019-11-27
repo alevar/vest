@@ -55,6 +55,7 @@ public:
     void fit_read(int refID,int ref_start,int end,int& newStart, int& s, std::vector<int>& not_removed, std::unordered_set<int>& added);
     void find_location(int refID, int ref_start, int end, int& new_start, int& s);
 
+    void pre_fit_annotation(std::string in_gff);
     void fit_annotation(std::string in_gff,std::string out_gff);
 
     int get_gff_pos(int refID,int pos);

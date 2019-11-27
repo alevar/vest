@@ -120,8 +120,8 @@ void MSA_Graph::save_merged_fasta(std::string& out_fp){
         if(this->removed[i]==0){
             std::string nt_str = "";
             mv = this->vertices.get(i);
-            mv->get_nt_string(nt_str);
-//            mv->get_supported_nt_string(nt_str);
+//            mv->get_nt_string(nt_str);
+            mv->get_supported_nt_string(nt_str);
             iupac_nt = this->IUPAC[nt_str];
             merged_fp<<iupac_nt;
             nt_str.clear();
@@ -173,72 +173,6 @@ void MSA_Graph::find_location(int refID, int ref_start, int end, int& new_start,
         }
         new_start = 0;
         s = 0;
-    }
-}
-
-void MSA_Graph::fit_read2(int refID,int ref_start,int end,int& new_start, int& s, std::vector<int>& not_removed, std::vector<int>& added){ // the last four parameters are the return
-    s=0;
-    this->find_location(refID,ref_start,end,new_start,s);
-    if(s>0){
-        for(int i=0;i<s;i++){
-            added.emplace_back(i);
-        }
-    }
-    std::vector<int> to_remove;
-    int pos_tracker = 0,next_vID,cur_vID;
-    MSA_Vertex* v,next_v;
-    int start = ref_start;
-
-    while(true){
-        cur_vID = start;
-        if(cur_vID==10975){
-            std::cout<<"found removed"<<std::endl;
-        }
-        v = this->vertices.get(cur_vID);
-        next_vID = v->get_next_pos4ref(refID);
-        if(this->removed[cur_vID]==0){
-            v->inc_ref(refID);
-            v->set_mapped();
-        }
-//        if(this->removed[cur_vID]==0 && this->vertices.get(cur_vID)->is_mapped()){
-//            not_removed.push_back(pos_tracker);
-//        }
-        if(cur_vID != next_vID){
-            int tmp_pos = pos_tracker;
-            for(int i=cur_vID+1;i<next_vID;i++){
-                if(i>this->farthestEnd){
-                    to_remove.push_back(i);
-                }
-                else{
-                    if(this->removed[i]==0 && this->vertices.get(i)->is_mapped()){
-                        not_removed.push_back(tmp_pos);
-                    }
-                }
-                tmp_pos++;
-            }
-        }
-        if(next_vID>=end){
-            break;
-        }
-        else{
-            start = next_vID;
-        }
-        pos_tracker++;
-        if(this->removed[cur_vID]==1 && next_vID==cur_vID+1){
-            if(pos_tracker-s>=0){
-                added.push_back(pos_tracker-s);
-            }
-        }
-    }
-    if(to_remove.size()>0){
-        for(auto& vid : to_remove){
-            this->removed[vid]=1;
-        }
-    }
-    this->memo_end = end;
-    this->memo_refID = refID;
-    if(end>this->farthestEnd){
-        farthestEnd = end;
     }
 }
 
@@ -337,6 +271,61 @@ void MSA_Graph::get_last_mapped_pos(int& pos,int& refID){
             return;
         }
     }
+}
+
+// tag notes on the graph that correspond to the entries in the annotation
+void MSA_Graph::pre_fit_annotation(std::string in_gff_fname){
+    std::ifstream in_gff_fp;
+    in_gff_fp.open(in_gff_fname.c_str(),std::ios::in);
+
+    if(!in_gff_fp.good()){
+        std::cerr<<"@ERROR::::Cannot open GFF to read"<<std::endl;
+        exit(-1);
+    }
+
+    std::ios::sync_with_stdio(false);
+    std::string line;
+    std::stringstream ss("");
+    std::string ref_name,track,feature,start_s,end_s,score,strand,phase,attrs;
+    int start,end;
+
+    while(std::getline(in_gff_fp,line)) { // iterate over references
+        if(line.front() == '#'){
+            continue;
+        }
+        ss.str(line);
+        ss.clear();
+
+        std::getline(ss, ref_name, '\t');
+        int refID = this->index.getID(ref_name);
+        if(refID==-1){
+            std::cerr<<"@ERROR::::GFF Reference sequence not found in the index"<<std::endl;
+            exit(-1);
+        }
+        std::getline(ss, track, '\t');
+        std::getline(ss, feature, '\t');
+        std::getline(ss, start_s, '\t');
+        std::getline(ss, end_s, '\t');
+        std::getline(ss, score, '\t');
+        std::getline(ss, strand, '\t');
+        std::getline(ss, phase, '\t');
+        std::getline(ss, attrs, '\t');
+
+        int new_start = this->get_gff_pos(refID,std::atoi(start_s.c_str())-1);
+        int new_end = this->get_gff_pos(refID,std::atoi(end_s.c_str())-1);
+
+        MSA_Vertex* ms = this->vertices.get(new_start);
+        ms->inc_ref(refID);
+        ms->set_mapped();
+
+        MSA_Vertex* me = this->vertices.get(new_end);
+        me->inc_ref(refID);
+        me->set_mapped();
+    }
+    in_gff_fp.close();
+
+    std::cerr << "@LOG::loaded the annotation"<<std::endl;
+    return;
 }
 
 void MSA_Graph::fit_annotation(std::string in_gff_fname,std::string out_gff_fname){

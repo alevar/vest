@@ -1539,6 +1539,13 @@ void MSA::realign(std::string in_sam,std::string out_sam){
     std::cerr<<"@LOG::::Done joining reads"<<std::endl;
 }
 
+void MSA::pre_fit_annotation(std::string in_gff){
+    std::cerr<<"@LOG::::Begin pre-fitting annotation"<<std::endl;
+    this->graph.pre_fit_annotation(in_gff);
+    std::cerr<<"@LOG::""Done pre-fitting annotation"<<std::endl;
+    return;
+}
+
 void MSA::fit_annotation(std::string in_gff, std::string out_gff){
     std::cerr<<"@LOG::::Begin fitting annotation"<<std::endl;
     this->graph.fit_annotation(in_gff,out_gff);

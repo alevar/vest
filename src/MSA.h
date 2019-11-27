@@ -40,6 +40,7 @@ public:
 
     void realign(std::string in_sam,std::string out_sam);
 
+    void pre_fit_annotation(std::string in_gff);
     void fit_annotation(std::string in_gff, std::string out_gff);
     void fit_bed(std::string in_bed,std::string out_bed);
 
