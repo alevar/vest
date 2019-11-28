@@ -166,13 +166,12 @@ void MSA_Graph::find_location(int refID, int ref_start, int end, int& new_start,
             next_pos = this->vertices.get(next_pos)->get_next_pos4ref(refID);
             s++;
             if(!removed[next_pos]){
-//                sum_removed = std::accumulate(this->removed.begin(),this->removed.begin()+next_pos,0);
-//                new_start =  next_pos - sum_removed;
+                sum_removed = std::accumulate(this->removed.begin(),this->removed.begin()+next_pos,0);
+                new_start =  next_pos - sum_removed;
                 return;
             }
         }
-        new_start = 0;
-        s = 0;
+        new_start = ref_start - sum_removed;
     }
 }
 

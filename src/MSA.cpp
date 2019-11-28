@@ -685,11 +685,6 @@ void MSA::split_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr
 }
 
 // clean the graph based on the specified position
-// TODO: not significant at the moment multiple strategies can be employed:
-//    1. remove everything before current start
-//    2. remove everything before current position but keep preceeding bases from the same reference as the first read
-//    3. remove everything before current position but keep preceeding bases from the specified reference
-//    4. do not remove anything
 void MSA::clean(){
     // find first mapped position
     int first_pos_read=0,first_refID;
@@ -799,9 +794,6 @@ void MSA::add_cigar(bam1_t *curAl,int num_cigars,int* cigars){
     curAl->l_data = data_len;
     curAl->m_data = m_data;
 }
-
-// TODO: when filling in the gaps in the consensus what we can do by default is:
-//    check which genome has the highest number of unique mappings and use that
 
 void MSA::create_del(bam1_t* in_rec,std::vector<std::pair<int,int>>& not_removed){
     // currently we assume that positions in not_removed are sorted (which should hold true, since the alignment is evaluated in order)
@@ -995,10 +987,6 @@ void MSA::parse_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr
     std::unordered_set<int> added_tmp;
     std::vector<std::pair<int,int>> not_removed,added;
 
-//    if(std::strcmp(bam_get_qname(in_rec),"AF084936_9472_9622_0:1:0_0:1:0_e8a/1")==0){
-//        std::cout<<"found"<<std::endl;
-//    }
-
     this->graph.fit_read(tag_refID,in_rec_ref_start,tag_ref_end,new_start,s,not_removed_tmp,added_tmp);
     in_rec_ref_start = new_start;
 
@@ -1011,23 +999,17 @@ void MSA::parse_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr
             // instead of introducing a deletion into the actual cigar string - perhaps would make sense to simply split the read and record the type for later
             // how can we do this without having to repeat the same process for the reads that fall in here
             l2range(not_removed_tmp,not_removed);
-//            if(std::strcmp(bam_get_qname(in_rec),"KF234628_7421_7571_0:0:0_0:0:0_78c/1")==0){
-//                print_cigar(in_rec);
-//            }
             create_del(in_rec,not_removed);
-//            if(std::strcmp(bam_get_qname(in_rec),"KF234628_7421_7571_0:0:0_0:0:0_78c/1")==0){
-//                print_cigar(in_rec);
-//            }
         }
         if(added_tmp.size()>0){
             // instead of introducing a deletion into the actual cigar string - perhaps would make sense to simply split the read and record the type for later
-//            l2range(added_tmp,added);
             create_ins(in_rec,added_tmp);
         }
-//        if(std::strcmp(bam_get_qname(in_rec),"KF234628_7421_7571_0:0:0_0:0:0_78c/1")==0){
-//            print_cigar(in_rec);
-//        }
         int ret_val = sam_write1(outSAM, outSAM_header, in_rec);
+    }
+    else{
+        std::cerr<<"seems like an error: "<<bam_get_qname(in_rec)<<std::endl;
+//        exit(-1);
     }
 }
 
@@ -1336,8 +1318,13 @@ void MSA::join_quals(std::vector<bam1_t*>& reads,uint8_t* data,int& cur_mem_pos,
     }
 }
 
-void MSA::joinReads(std::vector<bam1_t*>& reads,samFile *outSAM_joined,bam_hdr_t *outSAM_joined_header){
+void MSA::join_reads(std::vector<bam1_t*>& reads,samFile *outSAM_joined,bam_hdr_t *outSAM_joined_header,int mate_start){
     if(reads.empty()){
+        return;
+    }
+    if(reads.size()==1){
+        reads.front()->core.mpos=mate_start;
+        int ret = sam_write1(outSAM_joined,outSAM_joined_header,reads.front());
         return;
     }
     // get the size of each of the data blocks
@@ -1384,7 +1371,6 @@ void MSA::joinReads(std::vector<bam1_t*>& reads,samFile *outSAM_joined,bam_hdr_t
 
     join_seqs(reads,data,cur_mem_pos,total_seq_len);
 
-    // TODO: need to take care of the quality strings and move them to the tags in case of insertions as well - should be fairly simple
     join_quals(reads,data,cur_mem_pos,total_seq_len);
 
     // lastly copy over the auxilary data
@@ -1399,6 +1385,7 @@ void MSA::joinReads(std::vector<bam1_t*>& reads,samFile *outSAM_joined,bam_hdr_t
     new_rec->data = data;
     new_rec->l_data = data_len;
     new_rec->m_data = m_data;
+    new_rec->core.mpos = mate_start;
 
     remove_aux_tags(new_rec);
 
@@ -1425,9 +1412,24 @@ void MSA::realign(std::string in_sam,std::string out_sam){
     bam_hdr_t *in_al_hdr = sam_hdr_read(in_al); //read header
     in_al_hdr->ignore_sam_err=1;
     bam1_t *in_rec = bam_init1(); //initialize an alignment
+    bam1_t *mate = bam_init1(); //initialize mate
     int ret;
 
     while(sam_read1(in_al, in_al_hdr, in_rec) >= 0) {
+        if(in_rec->core.flag & 0x4){ // read is unmapped
+            int ret_val = sam_write1(outSAM, outSAM_header, in_rec);
+            continue;
+        }
+        if(in_rec->core.flag & 0x100 || in_rec->core.flag & 0x800){ // not primary or supplementary aligment
+            std::cerr<<"@ERROR::: detected a non-primary or supplementary alignment: "<<bam_get_qname(in_rec)<<std::endl;
+            exit(-1);
+        }
+        if(in_rec->core.flag & 0x1){ // paired and both mates are mapped (concordantly or discordantly) since it passed the check above
+            std::string ref_name = std::string(in_al_hdr->target_name[in_rec->core.mtid]);
+            int refID = this->graph.get_id(ref_name); // reference ID of the read
+            in_rec->core.mpos = this->graph.get_new_position(refID,in_rec->core.mpos);
+            in_rec->core.mtid = 0;
+        }
         if(isMod(in_rec)){
             split_read(in_rec,in_al_hdr,outSAM,outSAM_header);
         }
@@ -1444,6 +1446,7 @@ void MSA::realign(std::string in_sam,std::string out_sam){
     }
 
     bam_destroy1(in_rec);
+    bam_destroy1(mate);
     sam_close(in_al);
     sam_close(outSAM);
     bam_hdr_destroy(outSAM_header);
@@ -1468,13 +1471,14 @@ void MSA::realign(std::string in_sam,std::string out_sam){
     in_al_hdr = sam_hdr_read(in_al); //read header
     in_al_hdr->ignore_sam_err=1;
     in_rec = bam_init1(); //initialize an alignment
-
-//    this->clean(); // TODO: clean after parsing and then perform last correction after when joining
-//                         this can be achieved by creating another vector to keep track of the vertices removed during the cleanup
-//                         the modifications should not disturb the actual alignments
+    mate = bam_init1(); //initialize mate
 
     while(sam_read1(in_al, in_al_hdr, in_rec) >= 0) {
 //        std::cout<<bam_get_qname(in_rec)<<std::endl;
+        if(in_rec->core.flag & 0x4){ // read is unmapped
+            int ret_val = sam_write1(outSAM_clean, outSAM_clean_header, in_rec);
+            continue;
+        }
         parse_read(in_rec,in_al_hdr,outSAM_clean,outSAM_clean_header);
     }
 
@@ -1483,6 +1487,7 @@ void MSA::realign(std::string in_sam,std::string out_sam){
     this->graph.save_merged_fasta(consensus_fa_fname);
 
     bam_destroy1(in_rec);
+    bam_destroy1(mate);
     sam_close(in_al);
     sam_close(outSAM_clean);
     std::cerr<<"@LOG::::Done cleaning graph"<<std::endl;
@@ -1506,33 +1511,54 @@ void MSA::realign(std::string in_sam,std::string out_sam){
     in_al=sam_open(sorted_al_fname.c_str(),"r");
     in_al_hdr = sam_hdr_read(in_al); //read header
     in_al_hdr->ignore_sam_err=1;
-    in_rec = bam_init1(); //initialize an alignment
+    in_rec = bam_init1(); // initialize an alignment
+    mate = bam_init1(); // initialize mate
 
     // join reads here and hope for the best
     std::string last_read;
-    std::vector<bam1_t*> reads;
+    std::vector<bam1_t*> reads,mates;
 
     while(sam_read1(in_al, in_al_hdr, in_rec) >= 0) {
         uint8_t* ptr_zc_1=bam_aux_get(in_rec,"ZC");
-        if(!ptr_zc_1){ // the read was not split
+        if(in_rec->core.flag & 0x4){ // read is unmapped
             int ret_val = sam_write1(outSAM_joined, outSAM_joined_header, in_rec);
             continue;
         }
-        else{
-            // collect chains of fragments and join them according to the graph structure
-            if(std::strcmp(bam_get_qname(in_rec),last_read.c_str())==0){
+        // collect chains of fragments and join them according to the graph structure
+        if(std::strcmp(bam_get_qname(in_rec),last_read.c_str())==0){
+            if(in_rec->core.flag & 0x1 && in_rec->core.flag & 0x80){ // TODO: how does this work with discordants? do they still have the mate information set or not?
+                mates.emplace_back(bam_dup1(in_rec));
+            }
+            else{
                 reads.emplace_back(bam_dup1(in_rec));
             }
-            else{ // can join reads together
-                joinReads(reads,outSAM_joined,outSAM_joined_header);
-                last_read = bam_get_qname(in_rec);
-                reads.clear();
+        }
+        else{ // can join reads together
+            if(!mates.empty() && !reads.empty()){ // pair exists
+                join_reads(reads,outSAM_joined,outSAM_joined_header,mates.front()->core.pos);
+                join_reads(mates,outSAM_joined,outSAM_joined_header,reads.front()->core.pos);
+            }
+            else if(!reads.empty()){
+                join_reads(reads,outSAM_joined,outSAM_joined_header,0);
+            }
+            else if(!mates.empty()){
+                join_reads(mates,outSAM_joined,outSAM_joined_header,0);
+            }
+            else{}
+            last_read = bam_get_qname(in_rec);
+            reads.clear();
+            mates.clear();
+            if(in_rec->core.flag & 0x1 && in_rec->core.flag & 0x80){ // TODO: how does this work with discordants? do they still have the mate information set or not?
+                mates.emplace_back(bam_dup1(in_rec));
+            }
+            else{
                 reads.emplace_back(bam_dup1(in_rec));
             }
         }
     }
 
     bam_destroy1(in_rec);
+    bam_destroy1(mate);
     sam_close(in_al);
     sam_close(outSAM_joined);
 
