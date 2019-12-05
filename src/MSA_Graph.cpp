@@ -2,7 +2,6 @@
 // Created by sparrow on 5/2/19.
 //
 
-#include <cstring>
 #include "MSA_Graph.h"
 
 MSA_Graph::MSA_Graph(int length,int num_refs) {
@@ -392,5 +391,21 @@ void MSA_Graph::init_refcouts(){
     if(this->length==0){
         std::cerr<<"empty graph"<<std::endl;
         std::exit(-1);
+    }
+}
+
+// clean the graph for a projection
+void MSA_Graph::set_used(int refid){
+    // iterate over all the nodes
+    MSA_Vertex* mv;
+    bool ref_exists;
+    for(int i=0;i<this->length;i++){
+        mv=this->get_vertex(i);
+        if(mv->has_ref(refid)){
+            mv->set_mapped();
+        }
+        else{
+            this->removed[i]=1;
+        }
     }
 }

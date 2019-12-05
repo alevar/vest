@@ -1590,3 +1590,15 @@ void MSA::set_gapfillname(std::string ref_name){
     this->gap_fillID=this->graph.get_id(ref_name);
 }
 
+//
+void MSA::set_projection_name(std::string ref_name){
+    // make sure the reference exists in the index
+    int refid = this->graph.get_id(ref_name);
+    if(refid==-1){
+        std::cerr<<"@ERROR::: Requested projection name does not exist in the index"<<std::endl;
+        exit(-1);
+    }
+    // set all vertices that contain the reference as used
+    this->graph.set_used(refid);
+}
+
