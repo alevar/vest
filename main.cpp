@@ -48,7 +48,8 @@ int vest_realign(int argc,char* argv[]){
                     MUS_DB = 'x',
                     GFF = 'a',
                     BED = 'b',
-                    GAPFILLNAME = 'n'};
+                    GAPFILLNAME = 'n',
+                    PROJECTION_NAME = 'p'};
 
     ArgParse args_realign("vest_realign");
     args_realign.add_string(Opt_Realign::INPUT_FP,"input","","path to the input alignment",false);
@@ -57,6 +58,7 @@ int vest_realign(int argc,char* argv[]){
     args_realign.add_string(Opt_Realign::GFF,"ann","","annotation of genomic features with respect to one of the genomes",false);
     args_realign.add_string(Opt_Realign::BED,"bed","","bed-formatted interval to be converted to the reference sequence",false);
     args_realign.add_string(Opt_Realign::GAPFILLNAME,"gname","","Name of one of the sequences in the pan genome to be used when resolving a gap in the assembly. If not provided, the default behavior is to use the sequence supported by the reads on both sides of the junction",false);
+    args_realign.add_string(Opt_Realign::PROJECTION_NAME,"pname","","Name of the sequence in the pan genome to which the alignments will be projected",false);
 
     args_realign.parse_args(argc,argv);
 
@@ -80,6 +82,10 @@ int vest_realign(int argc,char* argv[]){
 
     if(args_realign.is_set(Opt_Realign::INPUT_FP)){
         msa.realign(args_realign.get_string(INPUT_FP),args_realign.get_string(OUTPUT));
+    }
+
+    if(args_realign.is_set(Opt_Realign::PROJECTION_NAME)){
+        msa.set_projection_name(args_realign.get_string(Opt_Realign::GAPFILLNAME));
     }
 
     if(args_realign.is_set(Opt_Realign::GFF)){
@@ -166,3 +172,8 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
+
+// TODO: A better way of performing projections
+//    1. if we want to project the alignment onto a single genome (eg. K03455) before performing the fitting (during which nodes are being tagged as used), we can pre-tag all nodes on the K03455 path as used, and the rest as unused
+//        thus enforcing fitting of the alignments strictly onto the chosen genome
+//    2. If we want to use full graph consensus but retain only a single genome in the gaps - we can tag the unused nodes with appropriate label and everything else tag as unused
