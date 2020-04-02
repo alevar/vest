@@ -94,7 +94,6 @@ private:
     std::unordered_map<std::string,std::string>::iterator IUPAC_it;
 
     std::unordered_map<std::string,std::string> IUPAC_REV;
-
 };
 
 
