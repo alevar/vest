@@ -2,10 +2,83 @@
 // Created by sparrow on 5/2/19.
 //
 
-#include <cstring>
 #include "MSA_Graph.h"
 
+MSA_Graph::MSA_Graph() {
+    this->IUPAC = std::unordered_map<std::string,std::string>({{"A","A"},
+                                                               {"C","C"},
+                                                               {"G","G"},
+                                                               {"T","T"},
+                                                               {"N","N"},
+                                                               {"AG","R"},{"GA","R"},
+                                                               {"CT","Y"},{"TC","Y"},
+                                                               {"CG","S"},{"GC","S"},
+                                                               {"AT","W"},{"TA","W"},
+                                                               {"GT","K"},{"TG","K"},
+                                                               {"AC","M"},{"CA","M"},
+                                                               {"CGT","B"},{"CTG","B"},{"GTC","B"},{"GCT","B"},{"TCG","B"},{"TGC","B"},
+                                                               {"AGT","D"},{"ATG","D"},{"GAT","D"},{"GTA","D"},{"TAG","D"},{"TGA","D"},
+                                                               {"ACT","H"},{"ATC","H"},{"CAT","H"},{"CTA","H"},{"TCA","H"},{"TAC","H"},
+                                                               {"ACG","V"},{"AGC","V"},{"CAG","V"},{"CGA","V"},{"GCA","V"},{"GAC","V"},
+                                                               {"ACGT","N"},{"ACTG","N"},{"AGCT","N"},{"AGTC","N"},{"ATCG","N"},{"ATGC","N"},
+                                                               {"CAGT","N"},{"CATG","N"},{"CGAT","N"},{"CGTA","N"},{"CTAG","N"},{"CTGA","N"},
+                                                               {"GACT","N"},{"GATC","N"},{"GCAT","N"},{"GCTA","N"},{"GTAC","N"},{"GTCA","N"},
+                                                               {"TACG","N"},{"TAGC","N"},{"TCAG","N"},{"TCGA","N"},{"TGAC","N"},{"TGCA","N"}});
+
+    this->IUPAC_REV = std::unordered_map<std::string,std::string>({{"A","A"},{"a","A"},
+                                                                   {"C","C"},{"c","C"},
+                                                                   {"G","G"},{"g","G"},
+                                                                   {"T","T"},{"t","T"},
+                                                                   {"R","AG"},{"r","AG"},
+                                                                   {"Y","CT"},{"y","CT"},
+                                                                   {"S","CG"},{"s","CG"},
+                                                                   {"W","AT"},{"w","AT"},
+                                                                   {"K","GT"},{"k","GT"},
+                                                                   {"M","AC"},{"m","AC"},
+                                                                   {"B","CGT"},{"b","CGT"},
+                                                                   {"D","AGT"},{"d","AGT"},
+                                                                   {"H","ACT"},{"h","ACT"},
+                                                                   {"V","ACG"},{"v","ACG"},
+                                                                   {"N","ACGT"},{"n","ACTG"}});
+}
+
 MSA_Graph::MSA_Graph(int length,int num_refs) {
+    this->IUPAC = std::unordered_map<std::string,std::string>({{"A","A"},
+                                                               {"C","C"},
+                                                               {"G","G"},
+                                                               {"T","T"},
+                                                               {"N","N"},
+                                                               {"AG","R"},{"GA","R"},
+                                                               {"CT","Y"},{"TC","Y"},
+                                                               {"CG","S"},{"GC","S"},
+                                                               {"AT","W"},{"TA","W"},
+                                                               {"GT","K"},{"TG","K"},
+                                                               {"AC","M"},{"CA","M"},
+                                                               {"CGT","B"},{"CTG","B"},{"GTC","B"},{"GCT","B"},{"TCG","B"},{"TGC","B"},
+                                                               {"AGT","D"},{"ATG","D"},{"GAT","D"},{"GTA","D"},{"TAG","D"},{"TGA","D"},
+                                                               {"ACT","H"},{"ATC","H"},{"CAT","H"},{"CTA","H"},{"TCA","H"},{"TAC","H"},
+                                                               {"ACG","V"},{"AGC","V"},{"CAG","V"},{"CGA","V"},{"GCA","V"},{"GAC","V"},
+                                                               {"ACGT","N"},{"ACTG","N"},{"AGCT","N"},{"AGTC","N"},{"ATCG","N"},{"ATGC","N"},
+                                                               {"CAGT","N"},{"CATG","N"},{"CGAT","N"},{"CGTA","N"},{"CTAG","N"},{"CTGA","N"},
+                                                               {"GACT","N"},{"GATC","N"},{"GCAT","N"},{"GCTA","N"},{"GTAC","N"},{"GTCA","N"},
+                                                               {"TACG","N"},{"TAGC","N"},{"TCAG","N"},{"TCGA","N"},{"TGAC","N"},{"TGCA","N"}});
+
+    this->IUPAC_REV = std::unordered_map<std::string,std::string>({{"A","A"},{"a","A"},
+                                                                   {"C","C"},{"c","C"},
+                                                                   {"G","G"},{"g","G"},
+                                                                   {"T","T"},{"t","T"},
+                                                                   {"R","AG"},{"r","AG"},
+                                                                   {"Y","CT"},{"y","CT"},
+                                                                   {"S","CG"},{"s","CG"},
+                                                                   {"W","AT"},{"w","AT"},
+                                                                   {"K","GT"},{"k","GT"},
+                                                                   {"M","AC"},{"m","AC"},
+                                                                   {"B","CGT"},{"b","CGT"},
+                                                                   {"D","AGT"},{"d","AGT"},
+                                                                   {"H","ACT"},{"h","ACT"},
+                                                                   {"V","ACG"},{"v","ACG"},
+                                                                   {"N","ACGT"},{"n","ACTG"}});
+
     this->length = length;
     this->num_refs = num_refs;
 
@@ -392,5 +465,21 @@ void MSA_Graph::init_refcouts(){
     if(this->length==0){
         std::cerr<<"empty graph"<<std::endl;
         std::exit(-1);
+    }
+}
+
+// clean the graph for a projection
+void MSA_Graph::set_used(int refid){
+    // iterate over all the nodes
+    MSA_Vertex* mv;
+    bool ref_exists;
+    for(int i=0;i<this->length;i++){
+        mv=this->get_vertex(i);
+        if(mv->has_ref(refid)){
+            mv->set_mapped();
+        }
+        else{
+            this->removed[i]=1;
+        }
     }
 }

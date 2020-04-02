@@ -6,7 +6,11 @@
 #include "src/MSA.h"
 
 void print_help(){
-    std::cout<<"help page"<<std::endl;
+    std::cerr<<"Vest"<<std::endl;
+    std::cerr<<"Modes:"<<std::endl;
+    std::cerr<<"\tbuild - build the graph from the MSA"<<std::endl;
+    std::cerr<<"\trealign - map alignments onto the MSA and infer consensus"<<std::endl;
+    std::cerr<<"\tinspect - inspect the graph"<<std::endl;
 }
 
 // extracts VCF from the Vest-realigned files based on the optional arguments
@@ -47,7 +51,7 @@ int vest_realign(int argc,char* argv[]){
                     GAPFILLNAME = 'n'};
 
     ArgParse args_realign("vest_realign");
-    args_realign.add_string(Opt_Realign::INPUT_FP,"input","","path to the input alignment",true);
+    args_realign.add_string(Opt_Realign::INPUT_FP,"input","","path to the input alignment",false);
     args_realign.add_string(Opt_Realign::OUTPUT,"output","","base name for the output files",true);
     args_realign.add_string(Opt_Realign::MUS_DB,"db","","database build with vest build from the ultiple sequence alignment",true);
     args_realign.add_string(Opt_Realign::GFF,"ann","","annotation of genomic features with respect to one of the genomes",false);
@@ -74,7 +78,9 @@ int vest_realign(int argc,char* argv[]){
         msa.set_gapfillname(args_realign.get_string(Opt_Realign::GAPFILLNAME));
     }
 
-    msa.realign(args_realign.get_string(INPUT_FP),args_realign.get_string(OUTPUT));
+    if(args_realign.is_set(Opt_Realign::INPUT_FP)){
+        msa.realign(args_realign.get_string(INPUT_FP),args_realign.get_string(OUTPUT));
+    }
 
     if(args_realign.is_set(Opt_Realign::GFF)){
         std::string out_gff_fname = args_realign.get_string(Opt_Realign::OUTPUT);
@@ -118,14 +124,18 @@ int vest_build(int argc,char* argv[]){
         }
     }
 
+    std::cerr<<"saving the index"<<std::endl;
+
     msa.save_graph(args_build.get_string(MUS_DB),cl);
 
     return 0;
 }
 
 int main(int argc, char* argv[]) {
-
-    if(strcmp(argv[1],"build") == 0){
+    if(argc<=1){
+        print_help();
+    }
+    else if(strcmp(argv[1],"build") == 0){
         std::cerr<<"building index"<<std::endl;
         int argc_build=argc-1;
         char* argv_build[argc_build];

@@ -5,6 +5,7 @@
 #ifndef VEST_MSA_GRAPH_H
 #define VEST_MSA_GRAPH_H
 
+#include <cstddef>
 #include <string>
 #include <numeric>
 #include <stdio.h>
@@ -14,6 +15,7 @@
 #include <sstream>
 #include <map>
 #include <unordered_set>
+#include <unordered_map>
 
 #include "MSA_Vertex.h"
 #include "MSA_Edge.h"
@@ -25,7 +27,7 @@
 
 class MSA_Graph {
 public:
-    MSA_Graph() = default;
+    MSA_Graph();
     MSA_Graph(int length, int num_refs);
     ~MSA_Graph() = default;
 
@@ -51,7 +53,6 @@ public:
     void save_graph2dot(std::ofstream &out_fp); // save vertices as a dot file
     void save_merged_fasta(std::string& out_fp);
 
-    void fit_read2(int refID,int ref_start,int end,int& newStart, int& s, std::vector<int>& not_removed, std::vector<int>& added);
     void fit_read(int refID,int ref_start,int end,int& newStart, int& s, std::vector<int>& not_removed, std::unordered_set<int>& added);
     void find_location(int refID, int ref_start, int end, int& new_start, int& s);
 
@@ -68,6 +69,8 @@ public:
     void get_most_abundant_refID(int pos,int&refID);
     void add2refcount(int pos,int refID);
     void init_refcouts();
+
+    void set_used(int refid);
 
 private:
     MSA_Index index; // index which holds ref IDs
@@ -86,43 +89,11 @@ private:
     int memo_refID,memo_end;
 
     // IUPAC definitions
-    std::unordered_map<std::string,std::string> IUPAC = std::unordered_map<std::string,std::string>({{"A","A"},
-                                                                                                     {"C","C"},
-                                                                                                     {"G","G"},
-                                                                                                     {"T","T"},
-                                                                                                     {"N","N"},
-                                                                                                     {"AG","R"},{"GA","R"},
-                                                                                                     {"CT","Y"},{"TC","Y"},
-                                                                                                     {"CG","S"},{"GC","S"},
-                                                                                                     {"AT","W"},{"TA","W"},
-                                                                                                     {"GT","K"},{"TG","K"},
-                                                                                                     {"AC","M"},{"CA","M"},
-                                                                                                     {"CGT","B"},{"CTG","B"},{"GTC","B"},{"GCT","B"},{"TCG","B"},{"TGC","B"},
-                                                                                                     {"AGT","D"},{"ATG","D"},{"GAT","D"},{"GTA","D"},{"TAG","D"},{"TGA","D"},
-                                                                                                     {"ACT","H"},{"ATC","H"},{"CAT","H"},{"CTA","H"},{"TCA","H"},{"TAC","H"},
-                                                                                                     {"ACG","V"},{"AGC","V"},{"CAG","V"},{"CGA","V"},{"GCA","V"},{"GAC","V"},
-                                                                                                     {"ACGT","N"},{"ACTG","N"},{"AGCT","N"},{"AGTC","N"},{"ATCG","N"},{"ATGC","N"},
-                                                                                                     {"CAGT","N"},{"CATG","N"},{"CGAT","N"},{"CGTA","N"},{"CTAG","N"},{"CTGA","N"},
-                                                                                                     {"GACT","N"},{"GATC","N"},{"GCAT","N"},{"GCTA","N"},{"GTAC","N"},{"GTCA","N"},
-                                                                                                     {"TACG","N"},{"TAGC","N"},{"TCAG","N"},{"TCGA","N"},{"TGAC","N"},{"TGCA","N"}});
+    std::unordered_map<std::string,std::string> IUPAC;
 
     std::unordered_map<std::string,std::string>::iterator IUPAC_it;
 
-    std::unordered_map<std::string,std::string> IUPAC_REV = std::unordered_map<std::string,std::string>({{"A","A"},{"a","A"},
-                                                                                                         {"C","C"},{"c","C"},
-                                                                                                         {"G","G"},{"g","G"},
-                                                                                                         {"T","T"},{"t","T"},
-                                                                                                         {"R","AG"},{"r","AG"},
-                                                                                                         {"Y","CT"},{"y","CT"},
-                                                                                                         {"S","CG"},{"s","CG"},
-                                                                                                         {"W","AT"},{"w","AT"},
-                                                                                                         {"K","GT"},{"k","GT"},
-                                                                                                         {"M","AC"},{"m","AC"},
-                                                                                                         {"B","CGT"},{"b","CGT"},
-                                                                                                         {"D","AGT"},{"d","AGT"},
-                                                                                                         {"H","ACT"},{"h","ACT"},
-                                                                                                         {"V","ACG"},{"v","ACG"},
-                                                                                                         {"N","ACGT"},{"n","ACTG"}});
+    std::unordered_map<std::string,std::string> IUPAC_REV;
 
 };
 
