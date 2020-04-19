@@ -89,6 +89,7 @@ MSA_Graph::MSA_Graph(int length,int num_refs) {
 
     // initialize the vector of removed
     this->removed = std::vector<int>(length,0);
+    this->removed_cleanup = std::vector<int>(length,0);
 }
 
 // this function adds a reference name to the index and create a unique ID
@@ -190,10 +191,9 @@ void MSA_Graph::save_merged_fasta(std::string& out_fp){
     std::string iupac_nt;
     int cl = 0;
     for(int i=0;i<this->vertices.size();i++){
-        if(this->removed[i]==0){
+        if(this->removed[i]==0 && this->removed_cleanup[i]==0){
             std::string nt_str = "";
             mv = this->vertices.get(i);
-//            mv->get_nt_string(nt_str);
             mv->get_supported_nt_string(nt_str);
             iupac_nt = this->IUPAC[nt_str];
             merged_fp<<iupac_nt;
@@ -248,6 +248,10 @@ void MSA_Graph::find_location(int refID, int ref_start, int end, int& new_start,
     }
 }
 
+int MSA_Graph::get_num_clean_removed(int pos){
+    return std::accumulate(this->removed_cleanup.begin(),this->removed_cleanup.begin()+pos,0);
+}
+
 void MSA_Graph::fit_read(int refID,int ref_start,int end,int& new_start, int& s, std::vector<int>& not_removed, std::unordered_set<int>& added){ // the last four parameters are the return
     s=0;
     this->find_location(refID,ref_start,end,new_start,s);
@@ -264,7 +268,7 @@ void MSA_Graph::fit_read(int refID,int ref_start,int end,int& new_start, int& s,
         cur_vID = next_vID;
         v = this->vertices.get(cur_vID);
         next_vID = v->get_next_pos4ref(refID);
-        if(this->removed[cur_vID]==1){ // current positions has been removed - causes insertion
+        if(this->removed[cur_vID]==1){ // current position has been removed - causes insertion
             added.insert(pos_tracker);
         }
         else{
@@ -314,13 +318,12 @@ int MSA_Graph::get_last_pos(int refID){
 
 void MSA_Graph::set_removed(int start, int end){
     for(int i=start;i<end;i++){
-        this->removed[i]=1;
+        this->removed_cleanup[i]=1;
     }
 }
 
-void MSA_Graph::get_most_abundant_refID(int pos,int&refID){
-    this->vertices.get(pos)->get_most_abundant_refID(refID);
-    return;
+int MSA_Graph::get_most_abundant_refID(int pos,int&refID){
+    return this->vertices.get(pos)->get_most_abundant_refID(refID);
 }
 
 void MSA_Graph::get_first_mapped_pos(int& pos,int& refID){
@@ -345,8 +348,61 @@ void MSA_Graph::get_last_mapped_pos(int& pos,int& refID){
     }
 }
 
+void MSA_Graph::clean_gaps(int start,int end) { // find gaps and remove any vertices that do not make sense for consensus
+    int gap_start = 0;
+    int gap_end = 0;
+    for(int i=start;i<end;i++){
+        if(gap_start==0){ // gap not found yet
+            if(!this->vertices.get(i)->is_mapped()){
+                gap_start = i;
+            }
+        }
+        else if(gap_start && !gap_end){ // gap found but need to search for the end
+            if(this->vertices.get(i)->is_mapped()){
+                gap_end = i-1;
+            }
+        }
+        else{ // both ends are found - can now evaluate and decide what to do
+            std::map<int,int> best_refs;
+            std::pair<std::map<int,int>::iterator,bool> br_it;
+            int refID;
+            for(int j=gap_start;j>(gap_start-10)&&j>0;j--){ // evaluate 10 nearest bases for the most common reference
+                int count = get_most_abundant_refID(j,refID);
+                br_it = best_refs.insert(std::make_pair(refID,0));
+                br_it.first->second+=count;
+            }
+
+            for(int j=gap_end;j>(gap_end+10)&&j<end;j++){ // evaluate 10 nearest bases for the most common reference
+                int count = get_most_abundant_refID(j,refID);
+                br_it = best_refs.insert(std::make_pair(refID,0));
+                br_it.first->second+=count;
+            }
+
+            // now find which reference to preserve
+            int best_ref = 0;
+            int best_count = 0;
+            for(auto& v : best_refs){
+                if(v.second>best_count){
+                    best_ref = v.first;
+                    best_count = v.second;
+                }
+            }
+
+            // lastly modify the paths to remove unwanted elements
+            for(int j=gap_start;j<gap_end;j++){
+                if(this->vertices.get(j)->has_ref(best_ref)){
+                    continue;
+                }
+                else{
+                    this->removed_cleanup[j]=1;
+                }
+            }
+        }
+    }
+}
+
 // tag notes on the graph that correspond to the entries in the annotation
-void MSA_Graph::pre_fit_annotation(std::string in_gff_fname){
+int MSA_Graph::pre_fit_annotation(std::string in_gff_fname){
     std::ifstream in_gff_fp;
     in_gff_fp.open(in_gff_fname.c_str(),std::ios::in);
 
@@ -372,7 +428,7 @@ void MSA_Graph::pre_fit_annotation(std::string in_gff_fname){
         int refID = this->index.getID(ref_name);
         if(refID==-1){
             std::cerr<<"@ERROR::::GFF Reference sequence not found in the index"<<std::endl;
-            exit(-1);
+            return -1;
         }
         std::getline(ss, track, '\t');
         std::getline(ss, feature, '\t');
@@ -397,10 +453,10 @@ void MSA_Graph::pre_fit_annotation(std::string in_gff_fname){
     in_gff_fp.close();
 
     std::cerr << "@LOG::loaded the annotation"<<std::endl;
-    return;
+    return 1;
 }
 
-void MSA_Graph::fit_annotation(std::string in_gff_fname,std::string out_gff_fname){
+int MSA_Graph::fit_annotation(std::string in_gff_fname,std::string out_gff_fname){
     std::ifstream in_gff_fp;
     in_gff_fp.open(in_gff_fname.c_str(),std::ios::in);
 
@@ -429,7 +485,7 @@ void MSA_Graph::fit_annotation(std::string in_gff_fname,std::string out_gff_fnam
         int refID = this->index.getID(ref_name);
         if(refID==-1){
             std::cerr<<"@ERROR::::GFF Reference sequence not found in the index"<<std::endl;
-            exit(-1);
+            return -1;
         }
         std::getline(ss, track, '\t');
         std::getline(ss, feature, '\t');
@@ -459,6 +515,7 @@ void MSA_Graph::fit_annotation(std::string in_gff_fname,std::string out_gff_fnam
     in_gff_fp.close();
 
     std::cerr << "@LOG::loaded the annotation"<<std::endl;
+    return 1;
 }
 
 void MSA_Graph::init_refcouts(){

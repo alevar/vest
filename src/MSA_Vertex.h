@@ -99,15 +99,16 @@ public:
         }
     }
 
-    void get_most_abundant_refID(int& refID){
+    int get_most_abundant_refID(int& refID){
         int count=0;
         int refid=0;
-        for(auto& rid : this->contents){
-            if(count<std::get<2>(rid)){
-                count=std::get<2>(rid);
-                refID=std::get<1>(rid);
+        for(int i=0;i<this->contents.size();i++){
+            if(count<std::get<2>(this->contents[i])){
+                count=std::get<2>(this->contents[i]);
+                refID=i;
             }
         }
+        return count;
     }
 
     // returns true if the vertex describes as a nucleotide on the given reference

@@ -4,6 +4,8 @@
 
 #include "MSA.h"
 #include "FastaTools.h"
+#include <sys/stat.h>
+#include <time.h>
 
 void print_cigar(bam1_t *al){
     for (uint8_t c=0;c<al->core.n_cigar;++c){
@@ -128,6 +130,64 @@ MSA::MSA(std::string msa_fname) {
                                                                    {"N","ACGT"},{"n","ACTG"}});
     this->msa_fname = msa_fname;
     this->parse_msa();
+}
+
+void MSA::set_out_fname(std::string out_fname){
+    this->out_fname = out_fname;
+
+    std::size_t found = this->out_fname.rfind('/');
+    if (found!=std::string::npos){
+        this->base_name = this->out_fname.substr(found+1,this->out_fname.size());
+    }
+    else{
+        this->base_name = out_fname;
+    }
+}
+
+void MSA::set_tmp_dir(std::string tmp_dir){
+    this->tmp_dir = tmp_dir;
+}
+void MSA::remove_tmp(){
+    std::string rm_cmd = "rm -rf "+this->tmp_dir;
+    system(rm_cmd.c_str());
+}
+void MSA::init_tmp(){
+    if(this->tmp_dir.size()==0){ // no tmp_dir set - initialize to the same directory where the result is to be stored
+        std::size_t found = this->out_fname.rfind('/');
+        if (found!=std::string::npos){
+            this->tmp_dir = this->out_fname.substr(0,found);
+        }
+        else{
+            this->tmp_dir = "./";
+        }
+        this->tmp_dir.append("/tmp_");
+        // generate random string
+        int min_rand_num = 3;
+        while(true){
+            srand (time(NULL));
+            int tmp_ext = rand() % min_rand_num + 1;
+            this->tmp_dir.append(std::to_string(tmp_ext));
+            struct stat sb;
+            if (stat(tmp_dir.c_str(), &sb) == 0 && S_ISDIR(sb.st_mode)) {
+                min_rand_num+=10000;
+            }
+            else{
+                break;
+            }
+        }
+        this->tmp_dir.append("/");
+        std::cerr<<"@LOG::: Temporary data will be written to: "<<this->tmp_dir<<std::endl;
+    }
+    else{
+        if(this->tmp_dir.back()!='/'){
+            this->tmp_dir.append("/");
+        }
+    }
+    const int dir_err = mkdir(this->tmp_dir.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+    if (-1 == dir_err){
+        printf("Error creating directory!n");
+        exit(1);
+    }
 }
 
 void MSA::parse_msa() {
@@ -760,6 +820,9 @@ void MSA::split_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr
 // clean the graph based on the specified position
 void MSA::clean(){
     // find first mapped position
+
+
+    // find first mapped position
     int first_pos_read=0,first_refID;
     this->graph.get_first_mapped_pos(first_pos_read,first_refID);
 
@@ -809,7 +872,8 @@ void MSA::clean(){
     }
     this->graph.set_removed(last_pos,this->graph.get_len()-1);
 
-    // 4. for each gap and ends do the same process
+    // 4. for each gap need to fill information with the most relevant data and remove everything else
+    this->graph.clean_gaps(first_pos_read,last_pos_read);
 }
 
 void MSA::change_cigar(bam1_t* in_rec,int s){
@@ -1396,7 +1460,14 @@ void MSA::join_reads(std::vector<bam1_t*>& reads,samFile *outSAM_joined,bam_hdr_
         return;
     }
     if(reads.size()==1){
+        int num_removed_clean = this->graph.get_num_clean_removed(reads.front()->core.pos); // get the number of bases removed during cleanup
+        reads.front()->core.pos-=num_removed_clean;
+
         reads.front()->core.mpos=mate_start;
+        if(mate_start>0){
+            num_removed_clean = this->graph.get_num_clean_removed(mate_start); // get the number of bases removed during cleanup
+            reads.front()->core.mpos-=num_removed_clean;
+        }
         int ret = sam_write1(outSAM_joined,outSAM_joined_header,reads.front());
         return;
     }
@@ -1404,6 +1475,9 @@ void MSA::join_reads(std::vector<bam1_t*>& reads,samFile *outSAM_joined,bam_hdr_
     int total_seq_len = 0;
     int total_num_cigars = 0;
     for(bam1_t *rec : reads){
+        int num_removed_clean = this->graph.get_num_clean_removed(rec->core.pos); // get the number of bases removed during cleanup
+        rec->core.pos-=num_removed_clean;
+
         int ins_len = get_ins_len(rec);
         total_seq_len+=rec->core.l_qseq+ins_len;
     }
@@ -1459,6 +1533,11 @@ void MSA::join_reads(std::vector<bam1_t*>& reads,samFile *outSAM_joined,bam_hdr_
     new_rec->l_data = data_len;
     new_rec->m_data = m_data;
     new_rec->core.mpos = mate_start;
+    new_rec->core.mpos=mate_start;
+    if(mate_start>0){
+        int num_removed_clean = this->graph.get_num_clean_removed(mate_start); // get the number of bases removed during cleanup
+        new_rec->core.mpos-=num_removed_clean;
+    }
 
     remove_aux_tags(new_rec);
 
@@ -1470,13 +1549,14 @@ void MSA::join_reads(std::vector<bam1_t*>& reads,samFile *outSAM_joined,bam_hdr_
     return;
 }
 
-void MSA::realign(std::string in_sam,std::string out_sam){
+void MSA::realign(std::string in_sam){
     samFile *msa_hdr_fp = hts_open(this->msa_header_fname.c_str(),"r");
     bam_hdr_t *msa_hdr = sam_hdr_read(msa_hdr_fp);
 
     std::cerr<<"@LOG::::Begin fitting alignments to MSA"<<std::endl;
 
-    samFile *outSAM=sam_open(out_sam.c_str(),"wb");
+    std::string tmp_fname_fit = this->tmp_dir+this->base_name;
+    samFile *outSAM=sam_open(tmp_fname_fit.c_str(),"wb");
     bam_hdr_t *outSAM_header=bam_hdr_init();
     outSAM_header=bam_hdr_dup(msa_hdr);
     sam_hdr_write(outSAM,outSAM_header);
@@ -1493,7 +1573,7 @@ void MSA::realign(std::string in_sam,std::string out_sam){
             int ret_val = sam_write1(outSAM, outSAM_header, in_rec);
             continue;
         }
-        if(in_rec->core.flag & 0x100 || in_rec->core.flag & 0x800){ // not primary or supplementary aligment
+        if(in_rec->core.flag & 0x100 || in_rec->core.flag & 0x800){ // not primary or supplementary alignment
             std::cerr<<"@ERROR::: detected a non-primary or supplementary alignment: "<<bam_get_qname(in_rec)<<std::endl;
             exit(-1);
         }
@@ -1527,19 +1607,19 @@ void MSA::realign(std::string in_sam,std::string out_sam){
     std::cerr<<"@LOG::::Done fitting alignment to MSA"<<std::endl;
 
     std::cerr<<"@LOG::::Begin sorting fitted alignment"<<std::endl;
-    std::string sam_sort_cmd = "samtools sort -o "+out_sam+".sorted.bam "+out_sam;
+    std::string sam_sort_cmd = "samtools sort -o "+tmp_fname_fit+".sorted.bam "+tmp_fname_fit;
     int res_sam_sort = system(sam_sort_cmd.c_str());
     std::cerr<<"@LOG::::Done sorting fitted alignment"<<std::endl;
 
     std::cerr<<"@LOG::::Begin cleaning graph"<<std::endl;
-    std::string out_sam_clean = out_sam+".clean";
+    std::string out_sam_clean = tmp_fname_fit+".clean";
     samFile *outSAM_clean=sam_open(out_sam_clean.c_str(),"wb");
     bam_hdr_t *outSAM_clean_header=bam_hdr_init();
     outSAM_clean_header=bam_hdr_dup(msa_hdr);
     sam_hdr_write(outSAM_clean,outSAM_clean_header);
     bam_hdr_destroy(outSAM_clean_header);
 
-    std::string sorted_al_fname = out_sam+".sorted.bam";
+    std::string sorted_al_fname = tmp_fname_fit+".sorted.bam";
     in_al=sam_open(sorted_al_fname.c_str(),"r");
     in_al_hdr = sam_hdr_read(in_al); //read header
     in_al_hdr->ignore_sam_err=1;
@@ -1547,7 +1627,6 @@ void MSA::realign(std::string in_sam,std::string out_sam){
     mate = bam_init1(); //initialize mate
 
     while(sam_read1(in_al, in_al_hdr, in_rec) >= 0) {
-//        std::cout<<bam_get_qname(in_rec)<<std::endl;
         if(in_rec->core.flag & 0x4){ // read is unmapped
             int ret_val = sam_write1(outSAM_clean, outSAM_clean_header, in_rec);
             continue;
@@ -1555,7 +1634,9 @@ void MSA::realign(std::string in_sam,std::string out_sam){
         parse_read(in_rec,in_al_hdr,outSAM_clean,outSAM_clean_header);
     }
 
-    std::string consensus_fa_fname(out_sam);
+    clean();
+
+    std::string consensus_fa_fname(out_fname);
     consensus_fa_fname.append(".cons.fasta");
     this->graph.save_merged_fasta(consensus_fa_fname);
 
@@ -1567,20 +1648,20 @@ void MSA::realign(std::string in_sam,std::string out_sam){
 
     std::cerr<<"@LOG::::Begin sorting disjoint alignments by name"<<std::endl;
 
-    sam_sort_cmd = "samtools sort -n -o "+out_sam+".sorted_name.bam "+out_sam+".clean";
+    sam_sort_cmd = "samtools sort -n -o "+tmp_fname_fit+".sorted_name.bam "+tmp_fname_fit+".clean";
     res_sam_sort = system(sam_sort_cmd.c_str());
 
     std::cerr<<"@LOG::::Done sorting disjoint alignments by name"<<std::endl;
 
     std::cerr<<"@LOG::::Begin joining reads"<<std::endl;
-    std::string out_sam_joined = out_sam+".joined";
+    std::string out_sam_joined = out_fname;
     samFile *outSAM_joined=sam_open(out_sam_joined.c_str(),"wb");
     bam_hdr_t *outSAM_joined_header=bam_hdr_init();
     outSAM_joined_header=bam_hdr_dup(msa_hdr);
     sam_hdr_write(outSAM_joined,outSAM_joined_header);
     bam_hdr_destroy(outSAM_joined_header);
 
-    sorted_al_fname = out_sam+".sorted_name.bam";
+    sorted_al_fname = tmp_fname_fit+".sorted_name.bam";
     in_al=sam_open(sorted_al_fname.c_str(),"r");
     in_al_hdr = sam_hdr_read(in_al); //read header
     in_al_hdr->ignore_sam_err=1;
@@ -1641,14 +1722,17 @@ void MSA::realign(std::string in_sam,std::string out_sam){
 void MSA::pre_fit_annotation(std::string in_gff){
     std::cerr<<"@LOG::::Begin pre-fitting annotation"<<std::endl;
     this->graph.pre_fit_annotation(in_gff);
-    std::cerr<<"@LOG::""Done pre-fitting annotation"<<std::endl;
+    std::cerr<<"@LOG::Done pre-fitting annotation"<<std::endl;
     return;
 }
 
 void MSA::fit_annotation(std::string in_gff, std::string out_gff){
     std::cerr<<"@LOG::::Begin fitting annotation"<<std::endl;
-    this->graph.fit_annotation(in_gff,out_gff);
-    std::cerr<<"@LOG::""Done fitting annotation"<<std::endl;
+    int ret = this->graph.fit_annotation(in_gff,out_gff);
+    if(ret==-1){
+        std::cerr<<"@LOG::Annotation not fitted"<<std::endl;
+    }
+    std::cerr<<"@LOG::Done fitting annotation"<<std::endl;
     return;
 }
 

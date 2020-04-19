@@ -56,8 +56,8 @@ public:
     void fit_read(int refID,int ref_start,int end,int& newStart, int& s, std::vector<int>& not_removed, std::unordered_set<int>& added);
     void find_location(int refID, int ref_start, int end, int& new_start, int& s);
 
-    void pre_fit_annotation(std::string in_gff);
-    void fit_annotation(std::string in_gff,std::string out_gff);
+    int pre_fit_annotation(std::string in_gff);
+    int fit_annotation(std::string in_gff,std::string out_gff);
 
     int get_gff_pos(int refID,int pos);
 
@@ -66,11 +66,14 @@ public:
     void set_removed(int start, int end);
     void get_first_mapped_pos(int& pos,int& refID);
     void get_last_mapped_pos(int& pos,int&refID);
-    void get_most_abundant_refID(int pos,int&refID);
+    int get_most_abundant_refID(int pos,int&refID);
     void add2refcount(int pos,int refID);
     void init_refcouts();
 
     void set_used(int refid);
+
+    int get_num_clean_removed(int pos);
+    void clean_gaps(int start,int end); // first mapped base and last mapped base
 
 private:
     MSA_Index index; // index which holds ref IDs
@@ -81,6 +84,7 @@ private:
 
     // related to updating the vector of removed vertices
     std::vector<int> removed; // TODO: simple vector for now - needs to be replaced by a more robust solution
+    std::vector<int> removed_cleanup; // these are the vertices that are removed during the cleanup
 
     int farthestEnd=0; // the value is set to the last position that was processed so far.
                         // Since reads are sorted with respect to the MSA, any nades prior to this value

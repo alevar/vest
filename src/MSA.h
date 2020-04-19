@@ -40,7 +40,7 @@ public:
 
     void load_graph(std::string in_graph_fname, std::string cmd);
 
-    void realign(std::string in_sam,std::string out_sam);
+    void realign(std::string in_sam);
 
     void pre_fit_annotation(std::string in_gff);
     void fit_annotation(std::string in_gff, std::string out_gff);
@@ -49,7 +49,17 @@ public:
     void set_gapfillname(std::string ref_name);
     void set_projection_name(std::string ref_name);
 
+    void set_tmp_dir(std::string tmp_dir);
+    void remove_tmp();
+    void init_tmp();
+    void set_out_fname(std::string out_fname);
+
 private:
+    std::string out_fname;
+    std::string base_name;
+    std::string tmp_dir = "";
+    bool keep_tmp_data = false;
+
     int gap_fillID = -1;
 
     std::string msa_fname;
