@@ -63,7 +63,8 @@ public:
 
     int get_first_pos(int refID); // retrieves the first position in the graph where the reference begins
     int get_last_pos(int refID);
-    void set_removed(int start, int end);
+    void set_removed_cleanup(int start, int end);
+    void set_removed_cleanup(int pos);
     void get_first_mapped_pos(int& pos,int& refID);
     void get_last_mapped_pos(int& pos,int&refID);
     int get_most_abundant_refID(int pos,int&refID);
@@ -71,6 +72,7 @@ public:
     void init_refcouts();
 
     void set_used(int refid);
+    void set_used(int start, int end, int refid);
 
     int get_num_clean_removed(int pos);
     void clean_gaps(int start,int end); // first mapped base and last mapped base

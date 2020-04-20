@@ -113,12 +113,10 @@ public:
 
     // returns true if the vertex describes as a nucleotide on the given reference
     bool has_ref(int refID){
-        for(auto& rid : this->contents){
-            if(std::get<1>(rid) == refID){
-                return true;
-            }
+        if(std::get<0>(this->contents[refID]).empty()){
+            return false;
         }
-        return false;
+        return true;
     }
 
     bool is_mapped(){return this->mapped;}

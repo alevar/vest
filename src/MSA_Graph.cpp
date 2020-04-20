@@ -316,10 +316,14 @@ int MSA_Graph::get_last_pos(int refID){
     return this->index.get_last_pos(refID);
 }
 
-void MSA_Graph::set_removed(int start, int end){
+void MSA_Graph::set_removed_cleanup(int start, int end){
     for(int i=start;i<end;i++){
         this->removed_cleanup[i]=1;
     }
+}
+
+void MSA_Graph::set_removed_cleanup(int pos){
+    this->removed_cleanup[pos]=1;
 }
 
 int MSA_Graph::get_most_abundant_refID(int pos,int&refID){
@@ -351,6 +355,7 @@ void MSA_Graph::get_last_mapped_pos(int& pos,int& refID){
 void MSA_Graph::clean_gaps(int start,int end) { // find gaps and remove any vertices that do not make sense for consensus
     int gap_start = 0;
     int gap_end = 0;
+    MSA_Vertex* mv;
     for(int i=start;i<end;i++){
         if(gap_start==0){ // gap not found yet
             if(!this->vertices.get(i)->is_mapped()){
@@ -395,6 +400,9 @@ void MSA_Graph::clean_gaps(int start,int end) { // find gaps and remove any vert
                 }
                 else{
                     this->removed_cleanup[j]=1;
+                    mv=this->get_vertex(j);
+                    mv->set_mapped();
+                    mv->inc_ref(best_ref);
                 }
             }
         }
@@ -534,9 +542,19 @@ void MSA_Graph::set_used(int refid){
         mv=this->get_vertex(i);
         if(mv->has_ref(refid)){
             mv->set_mapped();
+            mv->inc_ref(refid);
         }
         else{
             this->removed[i]=1;
         }
+    }
+}
+
+void MSA_Graph::set_used(int start, int end, int refid){ // for each base in this increment, sets the base as used
+    MSA_Vertex* mv;
+    for(int i=start;i<end;i++){
+        mv=this->get_vertex(i);
+        mv->set_mapped();
+        mv->inc_ref(refid);
     }
 }

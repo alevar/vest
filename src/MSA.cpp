@@ -820,57 +820,37 @@ void MSA::split_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr
 // clean the graph based on the specified position
 void MSA::clean(){
     // find first mapped position
-
-
-    // find first mapped position
     int first_pos_read=0,first_refID;
     this->graph.get_first_mapped_pos(first_pos_read,first_refID);
 
-    int first_pos = 0;
-    // 1. find the reference ID of the first mapping
-    int first_pos_default = 0;
-    if(this->gap_fillID==-1){
-        first_pos_default = this->graph.get_first_pos(first_refID);
-        first_pos = first_pos_default;
-    }
-
-    // 2. find where that reference begins in the graph
-    //     a. if gapfillname is set
-    int first_pos_ref = 0;
-    if(this->gap_fillID!=-1){
-        first_pos_ref = this->graph.get_first_pos(this->gap_fillID);
-        if(first_pos_read<first_pos_ref){ // read mapping preceeds the requested genome - the assembly will begin directly with the read
-            first_pos = first_pos_read;
+    // remove any vertex until the first mapping which does not contain the first reference
+    MSA_Vertex* mv;
+    for(int i=0;i<first_pos_read;i++){
+        mv = this->graph.get_vertex(i);
+        if(!mv->has_ref(first_refID)){
+            this->graph.set_removed_cleanup(i);
         }
         else{
-            first_pos = first_pos_ref;
+            mv->set_mapped();
+            mv->inc_ref(first_refID);
         }
     }
-
-    // 3. remove anything that preceeds the identified position
-    this->graph.set_removed(0,first_pos);
 
     // now to clean the end sequence
     int last_pos;
     int last_pos_read,last_refID_read;
     this->graph.get_last_mapped_pos(last_pos_read,last_refID_read);
 
-    int last_pos_ref = 0;
-    bool set_by_gapfill = false;
-    if(this->gap_fillID!=-1){
-        set_by_gapfill = true;
-        first_pos_ref = this->graph.get_last_pos(this->gap_fillID);
-        if(last_pos_read<last_pos_ref){ // read mapping preceeds the requested genome - the assembly will begin directly with the read
-            last_pos = last_pos_read;
+    for(int i=this->graph.get_len()-1;i>last_pos_read;i--){
+        mv = this->graph.get_vertex(i);
+        if(!mv->has_ref(first_refID)){
+            this->graph.set_removed_cleanup(i);
         }
         else{
-            last_pos = last_pos_ref;
+            mv->set_mapped();
+            mv->inc_ref(first_refID);
         }
     }
-    if(!set_by_gapfill){
-        last_pos = last_pos_read;
-    }
-    this->graph.set_removed(last_pos,this->graph.get_len()-1);
 
     // 4. for each gap need to fill information with the most relevant data and remove everything else
     this->graph.clean_gaps(first_pos_read,last_pos_read);
