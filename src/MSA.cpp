@@ -1107,7 +1107,7 @@ void MSA::parse_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr
     this->graph.fit_read(tag_refID,in_rec_ref_start,tag_ref_end,new_start,s,not_removed_tmp,added_tmp);
     in_rec_ref_start = new_start;
 
-    if(in_rec_ref_start != NULL){
+    if(in_rec_ref_start != -1){
         in_rec->core.pos = in_rec_ref_start;
         if(s>0){
             change_cigar(in_rec,s);

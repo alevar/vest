@@ -357,6 +357,9 @@ void MSA_Graph::clean_gaps(int start,int end) { // find gaps and remove any vert
     int gap_end = 0;
     MSA_Vertex* mv;
     for(int i=start;i<end;i++){
+        if(this->removed[i]){
+            continue;
+        }
         if(gap_start==0){ // gap not found yet
             if(!this->vertices.get(i)->is_mapped()){
                 gap_start = i;
