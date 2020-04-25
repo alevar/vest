@@ -853,7 +853,7 @@ void MSA::clean(){
     }
 
     // 4. for each gap need to fill information with the most relevant data and remove everything else
-    this->graph.clean_gaps(first_pos_read,last_pos_read);
+   this->graph.clean_gaps(first_pos_read,last_pos_read);
 }
 
 void MSA::change_cigar(bam1_t* in_rec,int s){
@@ -949,8 +949,6 @@ void MSA::create_del(bam1_t* in_rec,std::vector<std::pair<int,int>>& not_removed
             cigars[num_cigars]=BAM_CDEL|(nr_len<<BAM_CIGAR_SHIFT);
             ++num_cigars;
 
-//            cur_read_pos+=nr_len;
-
             nr_idx++;
         }
         if(was_set){
@@ -978,7 +976,6 @@ void MSA::create_ins_old(bam1_t* in_rec,std::vector<std::pair<int,int>>& added){
     int cur_read_pos=0; // delayed value does never advances ahead
     int last_read_pos = 0; // the total number of bases in the cigar operations fully consumed thus far
     for (uint8_t c=0;c<in_rec->core.n_cigar;++c){
-//        if(std::strcmp(bam_get_qname(in_rec),"KF234628_7421_7571_0:0:0_0:0:0_78c/1")==0){std::cout<<"p1"<<std::endl;}
         uint32_t *cigar_full=bam_get_cigar(in_rec);
         int opcode=bam_cigar_op(cigar_full[c]);
         int length=bam_cigar_oplen(cigar_full[c]);
@@ -992,7 +989,6 @@ void MSA::create_ins_old(bam1_t* in_rec,std::vector<std::pair<int,int>>& added){
         bool ins_created=false;
         bool skip_post=false;
         while(cur_read_pos>=added[nr_idx].first && nr_idx!=added.size()){ // add all the not_removed bases as relevant deletions
-//            if(std::strcmp(bam_get_qname(in_rec),"KF234628_7421_7571_0:0:0_0:0:0_78c/1")==0){std::cout<<"p2"<<std::endl;}
             was_set=true;
             skip_post=false;
             pre_len = length - ((cur_read_pos-added[nr_idx].first)+cum_pre_len);
@@ -1017,7 +1013,6 @@ void MSA::create_ins_old(bam1_t* in_rec,std::vector<std::pair<int,int>>& added){
             nr_idx++;
         }
         if(was_set && !skip_post){
-//            if(std::strcmp(bam_get_qname(in_rec),"KF234628_7421_7571_0:0:0_0:0:0_78c/1")==0){std::cout<<"p3"<<std::endl;}
             if(ins_created){
                 post_len-=nr_len;
                 ins_created=false;
@@ -1028,12 +1023,10 @@ void MSA::create_ins_old(bam1_t* in_rec,std::vector<std::pair<int,int>>& added){
             was_set=false;
         }
         else if(skip_post){
-//            if(std::strcmp(bam_get_qname(in_rec),"KF234628_7421_7571_0:0:0_0:0:0_78c/1")==0){std::cout<<"p4"<<std::endl;}
             break;
         }
         else{
             if(cur_read_pos<added[nr_idx].first){
-//                if(std::strcmp(bam_get_qname(in_rec),"KF234628_7421_7571_0:0:0_0:0:0_78c/1")==0){std::cout<<"p5"<<std::endl;}
                 cigars[num_cigars]=opcode|(length<<BAM_CIGAR_SHIFT);
                 ++num_cigars;
             }
@@ -1092,6 +1085,10 @@ void MSA::create_ins(bam1_t* in_rec,std::unordered_set<int>& added){
 
 // parse fitted read and adjust the graph
 void MSA::parse_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr_t* outSAM_header){
+
+    int32_t qlen = in_rec->core.l_qseq;
+    uint8_t* seq = bam_get_seq(in_rec);
+
     uint8_t* ptr_nm_1=bam_aux_get(in_rec,"ZB");
     int tag_ref_end = bam_aux2i(ptr_nm_1);
     ptr_nm_1=bam_aux_get(in_rec,"ZA");
@@ -1104,7 +1101,7 @@ void MSA::parse_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr
     std::unordered_set<int> added_tmp;
     std::vector<std::pair<int,int>> not_removed,added;
 
-    this->graph.fit_read(tag_refID,in_rec_ref_start,tag_ref_end,new_start,s,not_removed_tmp,added_tmp);
+    this->graph.fit_read(tag_refID,in_rec_ref_start,tag_ref_end,new_start,s,not_removed_tmp,added_tmp,seq,qlen);
     in_rec_ref_start = new_start;
 
     if(in_rec_ref_start != -1){
@@ -1126,7 +1123,7 @@ void MSA::parse_read(bam1_t* in_rec,bam_hdr_t *in_al_hdr,samFile* outSAM,bam_hdr
     }
     else{
         std::cerr<<"seems like an error: "<<bam_get_qname(in_rec)<<std::endl;
-//        exit(-1);
+        exit(-1);
     }
 }
 
@@ -1619,6 +1616,10 @@ void MSA::realign(std::string in_sam){
     std::string consensus_fa_fname(out_fname);
     consensus_fa_fname.append(".cons.fasta");
     this->graph.save_merged_fasta(consensus_fa_fname);
+
+    std::string base_refs_fname(out_fname);
+    base_refs_fname.append(".refs");
+    this->graph.save_base_refs(base_refs_fname);
 
     bam_destroy1(in_rec);
     bam_destroy1(mate);

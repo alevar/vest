@@ -25,6 +25,8 @@
 #include "gff.h"
 #include "GFaSeqGet.h"
 
+#define bam_seqi(s, i) ((s)[(i)>>1] >> ((~(i)&1)<<2) & 0xf)
+
 class MSA_Graph {
 public:
     MSA_Graph();
@@ -52,8 +54,9 @@ public:
     void save_graph(std::ofstream& out_fp); // saves vertices
     void save_graph2dot(std::ofstream &out_fp); // save vertices as a dot file
     void save_merged_fasta(std::string& out_fp);
+    void save_base_refs(std::string&out_fp); // for each mapped base - save the reference supporting that base
 
-    void fit_read(int refID,int ref_start,int end,int& newStart, int& s, std::vector<int>& not_removed, std::unordered_set<int>& added);
+    void fit_read(int refID,int ref_start,int end,int& newStart, int& s, std::vector<int>& not_removed, std::unordered_set<int>& added,uint8_t* seq,int32_t qlen);
     void find_location(int refID, int ref_start, int end, int& new_start, int& s);
 
     int pre_fit_annotation(std::string in_gff);

@@ -4,6 +4,10 @@
 
 #include "MSA_Graph.h"
 
+const char seq_nt16_str[] = "=ACMGRSVTWYHKDBN";
+
+const int seq_nt16_int[] = { 4, 0, 1, 4, 2, 4, 4, 4, 3, 4, 4, 4, 4, 4, 4, 4 };
+
 MSA_Graph::MSA_Graph() {
     this->IUPAC = std::unordered_map<std::string,std::string>({{"A","A"},
                                                                {"C","C"},
@@ -216,6 +220,33 @@ void MSA_Graph::save_merged_fasta(std::string& out_fp){
     merged_fai_fp.close();
 }
 
+void MSA_Graph::save_base_refs(std::string& out_fp){
+    std::ofstream out_ss(out_fp.c_str());
+    out_ss<<"pos,refs,count,cov"<<std::endl;
+
+    MSA_Vertex* mv;
+    std::string iupac_nt;
+    int pos = 0;
+    for(int i=0;i<this->vertices.size();i++){
+        if(this->removed[i]==0 && this->removed_cleanup[i]==0){
+            mv = this->vertices.get(i);
+            if(mv->is_mapped()){
+                // get most abundant ref or refs if multiple
+                int refid;
+                int count = mv->get_most_abundant_refID(refid);
+                int cov = mv->get_cov();
+                out_ss<<pos<<","<<this->index.getRef(refid)<<","<<count<<","<<cov<<std::endl;
+            }
+            else{
+                out_ss<<pos<<",-,0,0"<<std::endl;
+            }
+            pos++;
+        }
+    }
+    out_ss<<std::endl;
+    out_ss.close();
+}
+
 void MSA_Graph::add_vertex(int pos,MSA_Vertex mv) {
     this->vertices.change(pos,mv);
 }
@@ -252,7 +283,7 @@ int MSA_Graph::get_num_clean_removed(int pos){
     return std::accumulate(this->removed_cleanup.begin(),this->removed_cleanup.begin()+pos,0);
 }
 
-void MSA_Graph::fit_read(int refID,int ref_start,int end,int& new_start, int& s, std::vector<int>& not_removed, std::unordered_set<int>& added){ // the last four parameters are the return
+void MSA_Graph::fit_read(int refID,int ref_start,int end,int& new_start, int& s, std::vector<int>& not_removed, std::unordered_set<int>& added,uint8_t* seq,int32_t qlen){ // the last four parameters are the return
     s=0;
     this->find_location(refID,ref_start,end,new_start,s);
     if(s>0){
@@ -274,6 +305,8 @@ void MSA_Graph::fit_read(int refID,int ref_start,int end,int& new_start, int& s,
         else{
             v->inc_ref(refID);
             v->set_mapped();
+            // add current observed base from the read to the node
+            v->inc_read_base(seq_nt16_str[bam_seqi(seq, pos_tracker)]);
         }
         int tmp_pos = pos_tracker;
         for(int i=cur_vID+1;i<next_vID;i++){

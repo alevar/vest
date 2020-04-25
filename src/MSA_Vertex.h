@@ -6,6 +6,7 @@
 #define VEST_MSA_VERTEX_H
 
 #include <iostream>
+#include <algorithm>
 #include <cstdint>
 #include <vector>
 #include <unordered_map>
@@ -81,10 +82,6 @@ public:
         out_fp << std::endl;
     }
 
-    void load(std::string& out_fp){
-
-    }
-
     void get_nt_string(std::string& res){
         std::set<char> res_nts;
         for(auto& v : this->contents){
@@ -111,6 +108,10 @@ public:
         return count;
     }
 
+    int get_cov(){
+        return this->cov;
+    }
+
     // returns true if the vertex describes as a nucleotide on the given reference
     bool has_ref(int refID){
         if(std::get<0>(this->contents[refID]).empty()){
@@ -128,26 +129,48 @@ public:
             get_nt_string(res);
         }
         else {
-            // get the most abundant references first
-            int max_abund = 0;
-            std::set<char> res_nts;
-            for (auto &rc : this->contents) {
-                if (std::get<2>(rc) > max_abund) {
-                    max_abund = std::get<2>(rc);
-                    res_nts.clear();
-                    if (!std::get<0>(rc).empty()) {
-                        for (auto &n : std::get<0>(rc)) {
-                            res_nts.insert(n);
-                        }
-                    }
-                    else{
-                        std::cerr<<"reference sequence not found"<<std::endl;
-                        exit(-1);
-                    }
+            if(has_read_base){ // if base from reads is present - get most abundant
+                int base_it = std::distance(this->nts, std::max_element(this->nts,this->nts+4));
+                switch(base_it){
+                    case 0:
+                        res = "A";
+                        break;
+                    case 1:
+                        res = "C";
+                        break;
+                    case 2:
+                        res = "G";
+                        break;
+                    case 3:
+                        res = "T";
+                        break;
+                    default:
+                        res = "N";
+                        break;
                 }
             }
-            for (auto &v : res_nts) {
-                res += v;
+            else{ // otherwise use most abundant reference
+                // get the most abundant references first
+                int max_abund = 0;
+                std::set<char> res_nts;
+                for (auto &rc : this->contents) {
+                    if (std::get<2>(rc) > max_abund) {
+                        max_abund = std::get<2>(rc);
+                        res_nts.clear();
+                        if (!std::get<0>(rc).empty()) {
+                            for (auto &n : std::get<0>(rc)) {
+                                res_nts.insert(n);
+                            }
+                        }
+                        else{
+                            std::cerr<<"reference sequence not found"<<std::endl;
+                            exit(-1);
+                        }
+                    }
+                }
+                for (auto &v : res_nts) {
+                    res += v;
+                }
             }
         }
     }
@@ -170,9 +193,20 @@ public:
 
     void inc_ref(int refID){
         std::get<2>(contents[refID])++;
+        this->cov++; // increment overall coverage of this node
+    }
+
+    void inc_read_base(const char base){
+        this->has_read_base = true;
+        if(this->nt_table[base]==99){ // base not supported
+            return;
+        }
+        this->nts[this->nt_table[base]]++;
     }
 
 private:
+    int cov = 0;
+
     // lookup table where
     // A/a - 0
     // C/c - 1
@@ -215,7 +249,9 @@ private:
     // keep track of the number of times a given nucleotide is used
     // counters for each nucleotide should be incremented for each read that contains a given vertex
     // to be used during the realignment
-    uint8_t nts[4]={0,0,0,0};
+    uint16_t nts[4]={0,0,0,0};
+
+    bool has_read_base = false;
 
     std::vector<std::tuple<std::string,uint32_t,uint16_t> > contents = {}; // vector of nucleotides, where nucleotide is kept at the position of the reference id. each position also stores the index of the next vertex in case there exists an edge. The last element keeps count of the number of times the reference is confirmed
     uint32_t pos = 0; // position of the vertex in the MSA
